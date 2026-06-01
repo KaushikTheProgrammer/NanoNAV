@@ -1,5 +1,9 @@
 # Data Collection
 
+## Status
+
+**Collected.** Merged dataset: `kaushikpraka/wm-smallarea_merged`. The plan below records how/why it was gathered; collection itself is complete. Next step is the offline dataset build (SD-VAE encoding + body-frame delta integration).
+
 ## Paradigm
 
 The world model learns general environment dynamics, not task-specific behavior. Following NanoWM and DINO-WM, training data is exploratory interaction — diverse driving through the environment. The task (navigate to target object) enters only at inference via a goal image.

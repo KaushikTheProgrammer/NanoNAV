@@ -1,0 +1,11 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Downloaded / derived data (regenerable, large)
+/data/
+/external/*/data/
+
+# Local results
+/results/

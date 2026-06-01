@@ -11,6 +11,20 @@ f=5 (167ms chunks) matches PushT baseline. Navigation may benefit from larger f 
 ### Trajectory validation tool
 Need to build offline visualization: take raw velocity logs, integrate body-frame deltas, plot world-frame trajectory, verify against odometry. Confirms the integration math before training.
 
+**Update (2026-06-01):** The collected dataset (`wm-smallarea_merged`) has **no logged global pose** — `observation.state` mirrors the action (arm joints + base velocity), not pose. So there is no *independent* odometry to validate the SE(2) integration against; the world-frame trajectory we'd plot is itself derived from the same velocities. Validation is therefore **visual-flow consistency**: SD-VAE `compare` of frame *k* vs *k+f*, checking that flow direction/magnitude matches the sign/scale of the integrated `(Δx, Δθ)`. This is also exactly what training cares about. See [[nanowm-integration]].
+
+### Forward-speed coverage (bang-bang data) — found 2026-06-01
+Integration validation showed `x.vel` is near bang-bang: per-chunk Δx is bimodal (≈0 or ≈1.65 cm at
+full speed), with few intermediate values. The slow/low-Δx regime needed for fine near-goal approach
+is sparsely covered. Options if near-goal CEM struggles: collect a few deliberately-slow episodes
+(as the original plan intended but the data under-delivered), or down-weight reliance on fine speed
+control near the goal. See [[experiment-log]].
+
+### Reach per step shorter than assumed — found 2026-06-01
+Max Δx ≈ 1.65 cm/chunk (x.vel ≤ 0.1 m/s), so H=3 covers ~5 cm, not the design's ~15 cm. The
+flat-scoring threshold (~30 cm) is hit after very few chunks → reinforces both the f=8–10 experiment
+(below) and the waypoint scaffold ([[planning]]). Consider whether f=8–10 is needed from the start.
+
 ## Training Phase
 
 ### Will action branch survive with real-world data?

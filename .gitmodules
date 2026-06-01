@@ -1,0 +1,3 @@
+[submodule "external/nanowm"]
+	path = external/nanowm
+	url = https://github.com/KaushikTheProgrammer/nano-world-model.git

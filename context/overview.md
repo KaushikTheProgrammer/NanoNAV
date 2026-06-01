@@ -6,7 +6,11 @@ Use NanoWM (a diffusion-forcing world model) for goal-conditioned navigation on 
 
 ## Current Phase
 
-**Phase 2: Data Collection** — Preparing to record ~50 teleop episodes in a controlled room subset with PS5 controller.
+**Phase 3: Dataset Build / Training** — Teleop data already collected and merged: `kaushikpraka/wm-smallarea_merged`. Next: build training samples (SD-VAE encode + body-frame delta integration), train first NanoWM-B/2 checkpoint, run Table 5/6 diagnostic.
+
+## Project Tracking
+
+Progress, experiments, and decisions are tracked in **git** (this repo), not Obsidian. The `context/` notes are the living design record; the chronological record lives in [[experiment-log]].
 
 ## Key Decisions (Settled)
 
@@ -26,5 +30,9 @@ Use NanoWM (a diffusion-forcing world model) for goal-conditioned navigation on 
 - [[data-collection]] — Episode structure, controller setup, logging, dataset sizing
 - [[training]] — Model config, hyperparameters, diagnostic protocol
 - [[planning]] — CEM/MPC pipeline, scoring, waypoint scaffold, long-range solutions
-- [[experiment-log]] — Chronological record of decisions and results
+- [[experiment-log]] — Chronological record of design decisions
 - [[open-questions]] — Unresolved items and future directions
+- [[roadmap]] — Staged execution plan with current status
+- [[nanowm-integration]] — How the dataset plugs into NanoWM (concat vs integrate, v3.0→v2.1, the patch)
+- [[runpod-operator-guide]] — Runbook for the pod-side agent that babysits training
+- [[training-runs]] — Per-run training telemetry log
