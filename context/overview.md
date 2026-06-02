@@ -6,13 +6,14 @@ Use NanoWM (a diffusion-forcing world model) for goal-conditioned navigation on 
 
 ## Current Phase
 
-**Phase 4: First Checkpoint (training in progress)** — Teleop data collected/merged
-(`kaushikpraka/wm-smallarea_merged`) and the derived v2.1 nav dataset built (50 eps / 44,926 frames →
-`/workspace/data/lekiwi`). NanoWM-B/2 **Run 001 is training now** on a RunPod H100 (wandb run `x3ub`,
-`integrate_se2`, f=5, eff-bs 64, 50K steps). Next: the Table 5/6 action-conditioning diagnostic
-(auto-scheduled on the pod at ~50K steps), then the CEM planner. The training env is a **uv venv** with
-a repaired dependency stack (the upstream `environment.yml` was unbuildable) — see [[runpod-setup]]
-and [[training-runs]] (Run 001).
+**Phase 4→5: First checkpoint trained; action-conditioning diagnostic FAILED.** Dataset built (50 eps
+/ 44,926 frames → `/workspace/data/lekiwi`) and NanoWM-B/2 **Run 001** trained on a RunPod H100 (uv
+venv, `integrate_se2`, f=5, eff-bs 64). It **overfit by epoch ~3** and **failed the Table 5/6 gate**
+(action-embed RMS 0.0088 ≪ 0.1): the model barely uses actions. Root cause (quantified by
+`chunk_motion_viz.py`): **weak action SNR** — per-chunk motion is bang-bang/tiny (~1.67 cm) and the
+action-driven latent change sits below the non-action noise floor. **Next: retrain at f=8–10 (more
+motion per chunk) with best-val checkpointing + EarlyStopping, re-run the diagnostic** — not more
+training. See [[training-runs]] (Run 001), [[open-questions]], [[runpod-setup]].
 
 ## Project Tracking
 

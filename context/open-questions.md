@@ -30,6 +30,25 @@ flat-scoring threshold (~30 cm) is hit after very few chunks → reinforces both
 ### Will action branch survive with real-world data?
 PushT action conditioning works in sim with clean renders. Real-world camera noise, slight lighting variations, and visual complexity might make unconditional prediction harder — which could either help (model NEEDS the action to predict) or hurt (too much visual noise drowns the action signal). Table 5/6 diagnostic is the gate.
 
+**ANSWERED — Table 5/6 FAILED on Run 001 (2026-06-02). The action branch did NOT survive; visual
+noise drowns the action signal — and we quantified exactly why.** See [[training-runs]] Run 001 and
+[[experiment-log]] (eval session). Diagnostic on the step-10K checkpoint: action-embedding **RMS
+0.0088** (need ~0.1+; paper's SD-VAE 0.1119), GT final-latent L2 37.8 vs zero 42.0 / random 42.4 (GT
+only ~10% better). Root cause, from `chunk_motion_viz.py` over 960 chunks:
+- Forward motion is **bang-bang and tiny**: \|Δx\| bimodal at 0 and **~1.67 cm/chunk** (p50=p95=max),
+  rotation ~1.5°/chunk. (Confirms "bang-bang data" + "reach shorter than assumed" above.)
+- **corr(\|Δx\|, SD-VAE latent-L2) = 0.23** — motion barely predicts the latent change.
+- **Stationary chunks (Δx=0) have latent L2 ~10–45, essentially the SAME range as full-speed chunks
+  (~13–51)** — moving the robot changes the latent about as much as not moving does. The action-driven
+  signal sits below the non-action latent noise floor (sensor/lighting/exposure/SD-VAE sensitivity).
+- The world model's prediction error (latent L2 ≈31) ≈ the actual per-chunk change (≈30.6): it barely
+  beats "predict no change."
+
+**This is a data/representation SNR problem, not a training-length problem — more steps will not fix
+it.** Highest-leverage fixes: (1) **frame_interval 8–10+** (larger motion per chunk, above the noise
+floor — re-run the diagnostic at each f); (2) raise capture SNR (controlled lighting/exposure, more
+deliberate/longer translations); then the fallback options below.
+
 ### If Table 5/6 fails — fallback options
 1. Add absolute global pose as auxiliary conditioning (environment-specific but maximally informative)
 2. Try different action injection mechanism (cross-attention instead of additive — most expressive, most params)

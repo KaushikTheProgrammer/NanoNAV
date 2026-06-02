@@ -38,20 +38,23 @@ must be added), and the loadable LeRobot release for the v2.x format is **`lerob
   SD-VAE `compare` of frame *k* vs *k+f* (visual-flow vs `(Δx, Δθ)`) still ⬜ — no independent
   odometry exists (state is velocity, not pose).
 
-## ▶️ Stage 4 — First Checkpoint
+## ✅ Stage 4 — First Checkpoint (trained; overfit early — see Stage 5)
 
 NanoWM-B/2, v-prediction, additive injection, SD-VAE. Integrated `(Δx, Δθ)` action via the
 `integrate_se2` dataloader patch; `frame_interval=5` (the tunable reach knob). Trained on a single
-**RunPod H100** (eff-bs 64, 50K *optimizer* steps = grad_accum 4 × ~200K batches ≈ **~81 epochs ≈
-~24–26 h**). **Run 001 training now** (wandb run `x3ub`, loss decreasing). Env is the **uv venv** with
-the fixed dependency stack (see
-[[runpod-setup]]). Babysat per [[runpod-operator-guide]]; logged in [[training-runs]].
+**RunPod H100** (eff-bs 64, f=5). **Run 001** (wandb `x3ub`) trained on the uv-venv stack, but
+**overfit by epoch ~3** (50 episodes is tiny for B/2; 50K steps = ~81 epochs, and the config saved no
+best-val checkpoint) and was stopped at ~23K steps. See [[runpod-setup]], [[training-runs]].
 
-## ⬜ Stage 5 — Action-Conditioning Diagnostic (Table 5/6) — **critical gate**
+## ❌ Stage 5 — Action-Conditioning Diagnostic (Table 5/6) — **FAILED on Run 001**
 
-`action_diagnostic.py`: roll out under GT / zero / random actions; GT latent-L2 must clearly beat
-zero/random and action-embedding RMS must be ~0.1+. **Fail → fix training before any planning**
-(aux pose, cross-attn injection, larger embed, augmentation). See [[training]].
+`action_diagnostic.py` (GT / zero / random rollouts): GT latent-L2 must clearly beat zero/random and
+action-embedding RMS must be ~0.1+. **Run 001 (step-10K ckpt): FAIL** — RMS **0.0088**, GT 37.8 vs
+zero 42.0 / random 42.4. Root cause is **weak action SNR**: per-chunk motion is bang-bang/tiny
+(~1.67 cm), and the action-driven latent change sits below the non-action noise floor
+(corr(|Δx|, latentL2)=0.23) — quantified by `gt_rollout_viz.py` + `chunk_motion_viz.py`. Fix is
+**f=8–10** (more motion per chunk) + best-val checkpointing, not more training. See [[open-questions]],
+[[training-runs]], [[training]].
 
 ## ⬜ Stage 6 — Short-Range Planner (CEM/MPC)
 
@@ -73,6 +76,7 @@ actions. See [[open-questions]].
 
 ## Current critical path
 
-✅ 3a (built) → ▶️ 4 (Run 001 training on H100, wandb `x3ub`) → 5 (action diagnostic gate, scheduled
-to auto-run on the pod when training hits ~50K steps) → 3b SD-VAE visual-flow check (can run in
-parallel) → 6 (planner).
+✅ 3a (built) → ✅ 4 (Run 001 trained, overfit) → ❌ 5 (diagnostic FAILED — weak action SNR) →
+**▶️ retrain at f=8–10 with best-val checkpointing + EarlyStopping, re-run diagnostic** → (gate must
+pass before) 6 (planner). The diagnostic FAIL is the current blocker; do not build the planner until
+the action branch is healthy (RMS ~0.1+).

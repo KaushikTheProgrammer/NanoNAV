@@ -97,12 +97,35 @@ realized integration summary in [[nanowm-integration]]; env reality in [[runpod-
   `action_diagnostic.py` on the final checkpoint (a remote `/schedule` agent can't reach the pod's
   checkpoint/GPU).
 
+## 2026-06-02 — Eval session: overfitting, Table 5/6 FAIL, and the root cause
+
+Stopped Run 001 early (cost + overfitting) and evaluated the step-10K checkpoint. Full numbers in
+[[training-runs]] Run 001; design implications in [[open-questions]].
+
+- **Overfitting, early.** val_loss bottomed ~0.248 at step ~1.75K (epoch ~3), rose to ~0.43 by 23K.
+  The 50-episode set is tiny for B/2; the paper's analogous small domains used only 15–30K steps (vs
+  our 50K = ~81 epochs). The checkpoint config kept no best-val checkpoint, so the optimum was lost
+  → next run needs `monitor=val_loss` + EarlyStopping + lower max_steps.
+- **Action diagnostic: FAIL.** RMS 0.0088 (need ~0.1+); GT 37.8 vs zero 42.0 / random 42.4.
+- **Root cause (quantified).** Built `gt_rollout_viz.py` (decode GT-action rollouts) and
+  `chunk_motion_viz.py` (per-chunk motion vs frame/latent change). Over 960 chunks: \|Δx\| is bang-bang
+  at 0/1.67 cm, **corr(\|Δx\|, SD-VAE latentL2)=0.23**, and stationary chunks change the latent (~10–45)
+  about as much as full-speed chunks (~13–51). The action signal sits **below the non-action latent
+  noise floor** → the model correctly learns to ignore actions. The world model's prediction error
+  (latentL2≈31) ≈ the real per-chunk change (≈30.6).
+- **Conclusion:** data/representation SNR problem, not training length. Highest-leverage fix is
+  **frame_interval 8–10+** (more motion per chunk), re-running the diagnostic at each f.
+- **Tooling fixes (committed to the fork):** `action_diagnostic.py` (missing `sys.path`; `${hydra:}`
+  resolver stub so saved configs load standalone), `sampling_utils.py` (same resolver), and two new
+  eval scripts.
+
 ### Next Steps
 
 1. ~~Set up room environment (lighting, object positions, arm parking config)~~ ✅
 2. ~~Verify lerobot-record logging pipeline (camera + velocity at 30 Hz, no v_y)~~ ✅
 3. ~~Collect teleop episodes with PS5 controller~~ ✅ — merged to `kaushikpraka/wm-smallarea_merged`
 4. ~~Build dataset: top-camera v2.1 + body-frame delta integration~~ ✅ — `/workspace/data/lekiwi`
-5. ~~Train first NanoWM-B/2 checkpoint~~ ▶️ **Run 001 training now** (wandb `x3ub`)
-6. Run Table 5/6 action diagnostic at ~50K steps ← scheduled on the pod (tmux `diag`)
-7. Validate integration with SD-VAE visual-flow `compare` (Stage 3b, still open)
+5. ~~Train first NanoWM-B/2 checkpoint~~ ✅ Run 001 (overfit; stopped ~23K)
+6. ~~Run Table 5/6 action diagnostic~~ ✅ **FAILED** (RMS 0.0088) — root cause = weak action SNR
+7. **Retrain at f=8–10 with best-val checkpointing + EarlyStopping, re-run diagnostic** ← current
+8. SD-VAE visual-flow `compare` (Stage 3b) — partly addressed by `chunk_motion_viz.py` (latentL2 per chunk)

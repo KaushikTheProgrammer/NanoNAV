@@ -50,7 +50,7 @@ Add a new entry at the top for each run, using the template below. Keep entries 
 
 ## Run 001 — 2026-06-02
 
-**Status:** running
+**Status:** aborted (stopped ~step 23K of 50K — overfitting; diagnostic FAILED at step 10K)
 
 ### Setup
 - NanoWM fork SHA: 41f5c0c (+ uncommitted env/integration fixes — see below)
@@ -85,10 +85,36 @@ Add a new entry at the top for each run, using the template below. Keep entries 
   `/workspace/diag_watcher.sh` → `/workspace/results/diag_watcher.log`)
 
 ### Anomalies / interventions
-- (none yet)
+- **Overfitting (early).** val_loss bottomed ~0.248 at **step ~1,750 (epoch ~3)** then climbed to
+  ~0.43 by step 23K while train_loss kept dropping (~0.07). 50 episodes is tiny for B/2.
+- **Checkpoint-retention gap.** The config keeps only `latest` (rolling, every 1K) + `across_timesteps`
+  (every 10K) — **no `monitor=val_loss` best checkpoint**, so the val-optimum (~step 1.75K) was lost.
+  Surviving checkpoints (10K/20K/23K) are all in the overfit regime. **Fix next run: add a best-val
+  ModelCheckpoint + EarlyStopping + much lower max_steps.**
+- Stopped training at ~step 23K to save pod cost once it was clearly overfitting.
 
-### Table 5/6 diagnostic (gate)
-- _pending — run after ~50K steps (`src/sample/action_diagnostic.py`)._
+### Table 5/6 diagnostic (gate) — ran on the step-10K checkpoint (least-overfit survivor)
+- GT final-latent L2:   **37.77**
+- zero final-latent L2: 41.998
+- random latent-L2:     42.391
+- action-embed RMS:     **0.0088**   (threshold 0.05; paper's SD-VAE 0.1119)
+- verdict: **FAIL** — GT only ~10% better than zero/random; RMS far below 0.1. Action conditioning
+  is weak/atrophied. (`action_diag_10k/`.)
+
+### Eval findings (2026-06-02, step-10K ckpt) — root cause of the FAIL
+- **GT-action rollout viz** (`gt_rollout_10k/`, `src/sample/gt_rollout_viz.py`): predictions reproduce
+  the context with little action-driven change; pred-vs-GT latent L2 ≈31 ≈ the real per-chunk change
+  (≈30.6), i.e. barely beats "predict no change."
+- **Per-chunk motion vs frame change** (`chunk_motion/`, `src/sample/chunk_motion_viz.py`, 960 chunks):
+  \|Δx\| bang-bang at 0 / ~1.67 cm (p50=p95=max=1.67); \|Δθ\|~1.5°; pixel change ~4.6%; latent L2 ~30.6;
+  **corr(\|Δx\|, latentL2)=0.23**. Stationary chunks' latent L2 (~10–45) overlaps full-speed chunks'
+  (~13–51): **action-driven change is below the non-action latent noise floor.** Low action SNR ⇒
+  the model correctly learns to mostly ignore actions. See [[open-questions]] (answered: "will the
+  action branch survive").
 
 ### Outcome / next
-- _running; monitor per [[runpod-operator-guide]]; run the Stage-5 action diagnostic at ~50K steps._
+- First checkpoint trains and the pipeline works end-to-end, but the model does **not** usefully
+  action-condition → **not plan-ready**. This is a data/representation SNR issue, not training length.
+- **Next:** (1) retrain short with best-val checkpointing + EarlyStopping at **f=8–10** (larger motion
+  per chunk), re-run the diagnostic at each f; (2) if still failing, raise capture SNR / fallback
+  options in [[open-questions]]. Do NOT just train longer.
