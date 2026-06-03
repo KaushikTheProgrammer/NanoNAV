@@ -68,11 +68,21 @@ step-8000 is the checkpoint to carry into Stage 6** (best GT accuracy + translat
 mis-ranked the checkpoints, so judging by rollouts was decisive. See [[training-runs]] (Run 002),
 [[open-questions]], [[experiment-log]].
 
-## ⬜ Stage 6 — Short-Range Planner (CEM/MPC)
+## ⬜ Stage 6 — Short-Range Planner (CEM/MPC) — **on the step-8000 checkpoint**
 
-Stop-and-plan loop, CEM over the 6-D action space (H=3 × 2-D), latent-L2 scoring, decode-and-visualize
-rollouts. Proves goal-reaching at <30 cm. Requires CEM action wiring for `integrate_se2`
-(`planning_experiment.py`). See [[planning]].
+The CEM/MPC core already exists (`cem_planner.py` `CEMPlanner`, `diffusion_world_model.rollout`,
+`objective.py`, `preprocessor.py`, `planning_experiment.py` + `_sample_dset_goals`). Stage 6 is **wiring
+it for LeKiwi**: the `envs/` dir has no LeKiwi/dataset env. Plan (eval-grounded, see [[planning]] "Stage
+6 — Implementation Plan"):
+- **6a — offline CEM eval (next, GPU):** dataset-replay harness + `planning/lekiwi.yaml`; CEM recovers an
+  action sequence to a goal frame `goal_H` chunks ahead; report goal latent-L2 + decoded planned-vs-GT
+  rollouts. No robot.
+- **6b — closed-loop on LeKiwi:** real-robot env, stop-and-plan MPC, goal-image tasks.
+- **6c — long-range:** topological waypoint graph.
+
+Params from the evals: **step-8000**, **H = 3–5 chunks** (reliable rollout window; at f=10 → ~10–17 cm
+reach), latent-L2 scoring valid **<~30 cm**, CEM ~64×5×top-10, DDIM 20. Develop the code on a cheap box
+(repo only); run on GPU here on demand (ckpt + dataset stay on `/workspace`). See [[planning]].
 
 ## ⬜ Stage 7 — Long-Range Navigation
 

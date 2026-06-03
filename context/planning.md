@@ -1,5 +1,83 @@
 # Planning
 
+## Stage 6 — Implementation Plan (eval-grounded, 2026-06-03)
+
+> The sections below this one are the original (Run 001 / f=5) design. **This section is the current
+> Run 002 / f=10 plan**, grounded in the cross-checkpoint + long-rollout evals and mapped onto the
+> CEM/MPC code that **already exists** in the fork.
+
+### What already exists (reuse, don't rebuild)
+- `src/planning/cem_planner.py` — **`CEMPlanner`**: generic CEM (sample → batched WM rollout → score →
+  refit elites). Args: `action_dim, horizon, num_samples, topk, opt_steps, var_scale, eval_every,
+  sigma_min, action_low/high, rollout_batch_size`; has `.plan()`.
+- `src/planning/diffusion_world_model.py` — **`DiffusionWorldModel.rollout`** (autoregressive, batched;
+  verified to extend past H=3 via sliding context — see the long-rollout eval).
+- `src/planning/objective.py` — latent-distance objective; `src/planning/preprocessor.py` — action
+  (de)normalization (`denormalize_action` → velocity space).
+- `src/experiments/planning_experiment.py` — **`PlanningExperiment.planning()`** wires checkpoint → WM →
+  env → goals → CEM → rollout/score, with `_sample_dset_goals` (replay GT actions `goal_H*f` steps to
+  pick a reachable goal frame). CEM config: `src/configs/planning/planner/cem.yaml`.
+
+### What's missing for LeKiwi (the actual Stage 6 work)
+1. **A LeKiwi planning "env".** `src/planning/envs/` has only a registry; the existing envs are sims
+   (pusht/pointmaze/…). LeKiwi has no simulator, so:
+   - **6a (offline, GPU):** a **dataset-replay harness** — no robot. Encode a held-out start frame, pick a
+     goal frame `goal_H` chunks ahead (`_sample_dset_goals`), run CEM to recover an action sequence whose
+     predicted rollout matches `z_goal`, then **decode-and-visualize** the planned rollout vs the GT path.
+     Metrics: final predicted-vs-goal latent-L2, and recovered-vs-GT action error.
+   - **6b (closed-loop, on-robot):** a real-robot env via the lerobot robot interface — capture frame →
+     encode → CEM → execute first chunk's velocity → re-observe → repeat (stop-and-plan MPC).
+2. **integrate_se2 action wiring**: CEM `action_dim=2`; `action_low/high` from the f=10 action stats
+   (mean [0.0221, −0.0006], std [0.0141, 0.0707]); `denormalize_action` → `(Δx, Δθ)` → base velocity
+   `v_x = Δx/(f·Δt)`, `ω = Δθ/(f·Δt)` with **`f·Δt = 10/30 = 0.333 s`** (Run 002 chunk; was 0.167 s at f=5).
+3. **A `src/configs/planning/lekiwi.yaml`** (checkpoint, env=lekiwi-replay, CEM params below).
+
+### Eval-grounded parameters
+- **Checkpoint: step-8000** — `…/20260603_160326-NanoWM-B-2-F4S10-lekiwi/checkpoints/across_timesteps/epoch=13-step=8000.ckpt`
+  (best rollout quality in the cross-checkpoint eval).
+- **Horizon H = 3–5 chunks.** Long-rollout eval: pred-vs-GT latent-L2 stays low (~25–32) through ~step 5
+  then accelerates → keep MPC lookahead ≤5 and **replan every chunk**. At f=10 a chunk ≈ 3.3 cm / ~6°, so
+  H=3 reaches ~10 cm, H=5 ~17 cm.
+- **CEM:** ~64 samples × 5 opt-steps × top-10 elites (start from `cem.yaml`, tune).
+- **DDIM:** 20 for planning, 50 for final viz.
+
+### ⏱ Measured inference latency (step-8000, H100, **uncompiled**, sequential DDIM — 2026-06-03)
+| config | wall-time | per-sample |
+|---|---|---|
+| batch 1, H=3, DDIM=20 | 0.82 s | 818 ms |
+| batch 64, H=3, DDIM=20 | **29.1 s** | 454 ms |
+| batch 64, H=5, DDIM=20 | 58.1 s | 908 ms |
+| **CEM replan** 64×5×H3, DDIM20 | **~146 s** | |
+| CEM replan 64×5×H5 | ~291 s | |
+| CEM replan 64×3×H3 | ~87 s | |
+
+**A default CEM replan is ~2.4 min — the old "~1 s" estimate was ~100× optimistic.** Sequential
+diffusion-forcing (3 frames/chunk × DDIM each = 60 forwards/chunk), uncompiled model, compute-bound at
+batch 64. **6a (offline) is fine** (latency irrelevant; optionally DDIM=10 to speed the sweep). **6b
+(closed-loop) requires latency work first:** `torch.compile` (~2–3×) × DDIM 20→5 (~4×) × CEM 32 samples
+/ 3 iters (~3×) × H=3 (2×) ≈ 30× → **~5 s/replan**, a workable stop-and-plan target. Real-time (167 ms)
+would need sampler distillation — not needed for the prototype. (The "Runtime Analysis" section below is
+the original, optimistic estimate — superseded by this table.)
+- **Scoring:** latent-L2 (`objective.py`), valid **<~30 cm**; beyond that the landscape flattens → use the
+  **waypoint scaffold** (Solution 1 below) for longer routes.
+
+### Milestones
+- **6a — offline CEM eval (next; GPU).** Build the dataset-replay env + `lekiwi.yaml`; run
+  `experiment=planning … ckpt_path=<step-8000>`; report goal-reaching latent-L2 + decoded planned-vs-GT
+  rollouts. Proves planner + WM + scoring before any hardware.
+- **6b — closed-loop on LeKiwi.** Real-robot env, stop-and-plan MPC, goal-image tasks. Needs the robot.
+- **6c — long-range.** Topological waypoint graph (Solution 1) once short-range MPC works.
+
+### Develop vs run (cheap-box workflow)
+- **Develop/plan anywhere (no GPU):** all of 6a's code (env, config, CEM wiring, action math) is just the
+  **repo** — write + unit-test it on a cheap box; no checkpoint/dataset/GPU needed to author it.
+- **Run 6a (GPU):** needs a CUDA GPU + the step-8000 ckpt + dataset (`/workspace/data/lekiwi`) + venv
+  (`/workspace/nanowm-venv`) — **all on this RunPod volume**. Spin the H100 (or any cheaper GPU —
+  stop-and-plan is light) up on demand; the data stays here, nothing to move.
+- **Run 6b:** the LeKiwi robot + a small edge GPU.
+
+---
+
 ## MPC Outer Loop (Stop-and-Plan)
 
 1. **Stop.** Robot is stationary.
