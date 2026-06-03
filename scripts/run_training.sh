@@ -14,6 +14,14 @@ export HF_HUB_DISABLE_TELEMETRY=1
 export TOKENIZERS_PARALLELISM=false
 mkdir -p "$RESULTS_DIR"
 
+# Persistent secrets (WANDB_API_KEY, etc.) — lives on /workspace so it survives pod restarts.
+# Only /workspace persists; the root FS ~/.netrc wandb login does NOT (caused Run 002's first crash).
+if [ -f /workspace/secrets/env.sh ]; then
+    source /workspace/secrets/env.sh
+else
+    echo "[warn] /workspace/secrets/env.sh not found — wandb may fail to authenticate" >&2
+fi
+
 source /workspace/nanowm-venv/bin/activate
 cd "$REPO_DIR/external/nanowm"
 
