@@ -27,6 +27,18 @@ cd "$REPO_DIR/external/nanowm"
 
 python -c "import pytorch_lightning as pl, torch; print('[env] PL', pl.__version__, '| torch', torch.__version__)"
 
-# python -u so the log streams live to train.log (tail -f it to monitor). tee (not -a) = fresh log each launch.
+# Optional Lightning native resume: set RESUME_CKPT=/path/to/x.ckpt to continue a run with full
+# optimizer/LR/step state (distinct from warm-start). Logs to train_resume.log so the original
+# train.log is preserved.
+RESUME_ARG=()
+LOG="$RESULTS_DIR/train.log"
+if [ -n "${RESUME_CKPT:-}" ]; then
+    RESUME_ARG=("experiment.ckpt_path=$RESUME_CKPT")
+    LOG="$RESULTS_DIR/train_resume.log"
+    echo "[resume] continuing from $RESUME_CKPT"
+fi
+
+# python -u so the log streams live (tail -f it to monitor). tee (not -a) = fresh log each launch.
 exec python -u src/main.py experiment=lekiwi_nav dataset=lerobot/lekiwi model=nanowm_b2 \
-    2>&1 | tee "$RESULTS_DIR/train.log"
+    "${RESUME_ARG[@]}" \
+    2>&1 | tee "$LOG"
