@@ -236,9 +236,17 @@ mis-reads.** On the val-best step-4125 checkpoint: GT 36.1 / zero 40.7 / random 
 
 **Methodology note (diffusion-forcing):** val_loss bottomed 0.2047 at step 4125 then rose, but the
 denoising val_loss is a weak proxy for rollout quality — so we trained the *full* session (not
-early-stopped on val) and judge by rollouts. **In progress:** a seeded **cross-checkpoint rollout eval**
-(4125 / 6K / 8K / 10K / 12K — gate + motion + GT-vs-pred videos) to measure whether more training
-improves rollouts and pick the planner checkpoint.
+early-stopped on val) and judge by rollouts.
+
+**Cross-checkpoint rollout eval — result (the diffusion-forcing caveat paid off).** Seeded gate +
+motion rollouts at 4125/6K/8K/10K/12K (`results/eval_run002/`). **Rollout quality is U-shaped in step:
+it improves *past* the val-best (4125) to a peak at ~6K–8K, then overfitting degrades it through 12K**
+(GT latent-L2 36.15 → **35.30 @ 8K** → 37.11 @ 12K; same shape for translation/rotation/arc tracking).
+So **val_loss mis-ranked the checkpoints** — it called 4125 optimal, but rollouts say ~8K, and 12K
+overshoots. Action separation (random−GT) stays ~10 throughout and RMS only creeps 0.0089→0.0102 (still
+≪ 0.05) — the action branch is robust; the RMS gate is mis-calibrated. ⇒ **carry step-8000 into the
+CEM/MPC planner** (best GT accuracy + translation + arc; step-6000 best for rotation + separation), not
+the val-best or the final checkpoint. Detail + table + plot in [[training-runs]] (Run 002).
 
 **Architecture clarification:** the SD-VAE perception (`sd-vae-ft-mse`) is **frozen pretrained**; the
 160M transformer is trained **from scratch** (`pretrained: null`). So this is a scene-specific dynamics

@@ -53,7 +53,8 @@ Add a new entry at the top for each run, using the template below. Keep entries 
 **Status:** ✅ **completed** — trained the full **12,000 steps** (~20 epochs) at **f=10**. Survived
 three separate crashes (wandb-key / FID-metric / CUDACallback), each fixed + pushed. The
 **cross-checkpoint rollout evaluation** (step 4125 / 6K / 8K / 10K / 12K — gate + motion rollouts +
-GT-vs-pred videos) is **in progress**; results to be appended.
+GT-vs-pred videos) is **done**: rollout quality is **U-shaped in step — peaks at ~6K–8K, then
+overfits**; **step-8000 is the recommended planner checkpoint** (not the val-best 4125, not 12K).
 
 **Goal:** pass the Table 5/6 action-conditioning gate. Run 001 failed for **training** reasons, not
 observability (see Run 001 CORRECTION + `viz/stationary-vs-translation/`). Run 002 changes the two
@@ -109,9 +110,26 @@ things that caused the failure (plus a weak val monitor) and nothing else, so th
 - Pipeline is now robust (3 crash classes fixed + pushed). Action branch is **alive and
   action-sensitive** at the val-best checkpoint — materially better than Run 001 — though the legacy
   RMS gate still reads FAIL (now believed mis-calibrated).
-- **In progress:** cross-checkpoint rollout eval (4125/6K/8K/10K/12K) to answer *does more training
-  improve rollout quality* with a measured metric-vs-step curve + GT-vs-pred videos, and to pick the
-  checkpoint for the CEM/MPC planner. Results to be appended.
+- **Cross-checkpoint rollout eval — DONE** (`results/eval_run002/`, seed 42; gate + motion + GT-vs-pred
+  videos at 4125/6K/8K/10K/12K; `summary_plot.png` + `summary_table.md`). **Rollout quality is U-shaped
+  in training step — it improves *past* the val-best (4125) to a peak at ~step 6K–8K, then overfitting
+  degrades it through 12K.** So the val-loss optimum (4125) is **not** the best rollout model, and 12K
+  overshoots.
+
+  | step | GT↓ | sep(rand−GT)↑ | RMS | trans↓ | rot↓ | arc↓ |
+  |---|---|---|---|---|---|---|
+  | 4125 | 36.15 | 10.47 | 0.0089 | 31.9 | 39.3 | 42.7 |
+  | 6000 | 35.75 | **10.88** | 0.0092 | 30.4 | **34.5** | 39.8 |
+  | 8000 | **35.30** | 10.41 | 0.0098 | **30.4** | 35.0 | **37.4** |
+  | 10000| 36.57 | 9.82 | 0.0099 | 32.3 | 36.2 | 38.3 |
+  | 12000| 37.11 | 10.01 | 0.0102 | 32.9 | 38.3 | 38.7 |
+
+  Best GT accuracy + translation + arc at **step 8000**; best rotation + action-separation at **step
+  6000**. ⇒ **carry step-8000 (balanced best) into the CEM/MPC planner** — not 4125 (under-trained for
+  rollouts) nor 12000 (overfit). Action separation stays healthy (~10) throughout; RMS creeps
+  0.0089→0.0102 but stays ~5× below the 0.05 gate (gate is mis-calibrated, not the model). **Key
+  takeaway: val_loss mis-ranked the checkpoints (said 4125; rollouts say ~8K)** — judging by rollouts,
+  per the diffusion-forcing caveat, was decisive.
 
 ### What changes from Run 001 (and why)
 1. **`frame_interval` 5 → 10.** Translation's SNR over the non-action latent floor is only ~1:1 at f=5

@@ -61,10 +61,12 @@ translation/rotation/arc. The RMS being ~identical to Run 001 across two very di
 the separation + motion-tracking are the meaningful gate. (Earlier "translation unobservable" claim was
 refuted: translation IS observable, `viz/stationary-vs-translation/`; the camera was never the problem.)
 
-**In progress:** a **cross-checkpoint rollout eval** (step 4125 / 6K / 8K / 10K / 12K — gate + motion
-rollouts + GT-vs-pred videos, all seeded) to (a) confirm action-grounding strengthens (or at least
-holds) with training, (b) answer *does more training improve rollout quality*, and (c) pick the
-checkpoint to carry into Stage 6. See [[training-runs]] (Run 002), [[open-questions]], [[experiment-log]].
+**Cross-checkpoint rollout eval — DONE** (seeded, 4125/6K/8K/10K/12K): rollout quality is **U-shaped in
+step — peaks at ~6K–8K then overfits** (the val-best 4125 is *not* the best rollout model; 12K
+overshoots). Action separation stays ~10 throughout; RMS ~0.009–0.010 (gate mis-calibrated). **⇒
+step-8000 is the checkpoint to carry into Stage 6** (best GT accuracy + translation + arc). val_loss
+mis-ranked the checkpoints, so judging by rollouts was decisive. See [[training-runs]] (Run 002),
+[[open-questions]], [[experiment-log]].
 
 ## ⬜ Stage 6 — Short-Range Planner (CEM/MPC)
 
@@ -89,7 +91,8 @@ actions. See [[open-questions]].
 ✅ 3a (built) → ✅ 4 (Run 001 trained, overfit f=5) → ✅ **Run 002 trained to 12K at f=10**
 (best-val checkpointing; 3 crashes fixed + pushed) → **▶️ 5: re-gating via rollouts** — the action
 branch is now alive/action-sensitive (clean gt<zero<random + visible motion tracking), the legacy RMS
-gate reads FAIL but is judged mis-calibrated; a **cross-checkpoint rollout eval (4125/6K/8K/10K/12K)**
-is running to pick the checkpoint → (then) 6 (planner). Decision gate for the planner is now
-**rollout health** (action separation + motion-tracking fidelity), not the RMS number. Camera
+gate reads FAIL but is judged mis-calibrated; the **cross-checkpoint rollout eval** found rollout
+quality peaks at **~6K–8K** then overfits ⇒ **step-8000 is the chosen planner checkpoint** → **next: 6
+(planner)**. Decision gate for the planner is now **rollout health** (action separation + motion-tracking
+fidelity), not the RMS number. Camera
 relocation / odometry conditioning remains a **fallback** only if rollouts prove inadequate.
