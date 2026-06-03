@@ -48,6 +48,124 @@ Add a new entry at the top for each run, using the template below. Keep entries 
 
 <!-- New run entries go below this line, newest first. -->
 
+## Run 002 — PLAN (not yet launched)
+
+**Status (2026-06-03):** planned & specced; **nothing implemented yet** (no code/config edits made — VM
+stopped before launch). Decisions locked: **f=10** (single run), **best-val checkpointing**, **seeded
+fixed val subset**. Resume from the "Implementation checklist" below.
+
+**Goal:** pass the Table 5/6 action-conditioning gate. Run 001 failed for **training** reasons, not
+observability (see Run 001 CORRECTION + `viz/stationary-vs-translation/`). Run 002 changes the two
+things that caused the failure (plus a weak val monitor) and nothing else, so the result is interpretable.
+
+### What changes from Run 001 (and why)
+1. **`frame_interval` 5 → 10.** Translation's SNR over the non-action latent floor is only ~1:1 at f=5
+   but **~1.6:1 at f=10** (AUC 0.94 → 0.98); rotation stays strongly observable. f=10 (Δx≈3.33 cm,
+   333 ms/chunk) is the sweet spot — f=20 barely improves AUC for double the chunk duration (coarser
+   control, worse Δy-negligible approximation). Also ~doubles CEM reach per step (H=3 → ~10 cm).
+   *No dataset rebuild needed* — f is a dataloader knob (`integrate_se2`); only `dataset.frame_interval`
+   changes.
+2. **Capture the best-val checkpoint + stop early.** Run 001's val bottomed ~epoch 3 (~1.8K steps) then
+   overfit for 20K+ more steps, and the config kept **no** best-val checkpoint, so the optimum was lost
+   and an overfit (epoch-16) model was diagnosed. Fixes:
+   - Add a **`val_loss`-monitored `ModelCheckpoint`** (`monitor=val_loss, mode=min, save_top_k=3`) —
+     small change in `src/experiments/train_experiment.py` gated by a `checkpointing.best_val` config block.
+   - Checkpoint much more often: `across_timesteps` 10000→1000, `latest` 1000→500.
+   - `val_every_n_steps: 1000 → 250` (50 eps is tiny; epochs are ~600 steps, so sample val finely).
+   - `max_steps: 50000 → ~12000` (~20 epochs) — enough to pass the val bottom with margin; best-val
+     callback keeps the optimum regardless.
+   - Keep eff-bs 64, lr 1e-4, B/2, SD-VAE, v-pred, additive injection — **unchanged** (isolate the f +
+     checkpoint variables).
+3. **Fix the val monitor itself (it was non-representative).** See the next subsection — without this,
+   best-val selection keys off a weak signal.
+
+### Validation set + monitor (NEW approach)
+- **Val set:** `split_ratio 0.9` → **5 held-out episodes** (~896 frames ≈ 30 s each); ~**4,330**
+  exhaustive stride-1 windows at f=10 (4,405 at f=5).
+- **Run 001's flaw:** `lerobot/base.yaml` sets `validation_size: 32`, and `train_experiment.py:670–677`
+  truncates the val set to the **first 32 slices in index order** — i.e. 32 near-duplicate windows from
+  the opening ~0.5 s of *one* episode. So `val_loss` was non-representative and a poor basis for picking
+  a "best" checkpoint.
+- **Fix (use the existing `_apply_fixed_validation_subset`, lines 484–541):**
+  ```yaml
+  dataset.loader:
+    validation_size: null                 # OFF — stop the first-32 in-order truncation (runs AFTER the
+                                          #       fixed subset, so it would otherwise re-chop it to 32)
+    validation_fixed_subset_size: 256      # seeded random slices spread across all 5 val episodes
+    validation_fixed_subset_seed: 42       # reproducible; persisted to run_dir/validation_subset.json
+  ```
+  Gives a **stable** (same 256 windows scored every checkpoint), **representative** (random across all 5
+  episodes + all motion types), **reproducible** (seed + JSON, comparable across runs) monitor — the
+  precondition for `monitor=val_loss` to mean anything. Cost: 256/16 = **16 val batches**, so validating
+  every 250 steps is negligible. (Requires `val_slice_mode: exhaustive` — lekiwi already is.)
+  - Caveat: `val_loss` still has residual timestep/noise sampling variance (diffusion loss at random t);
+    the fixed subset removes the dominant *data* variance and 256 slices damp the rest. If the val curve
+    is too jittery to pick a clean min, seed per-val noise/timesteps (deeper change, only if needed).
+  - Untouched: `evaluation.validation_size: 32` (FVD/FID + video sampling path) and the action
+    diagnostic's own held-out rollouts — different mechanisms.
+
+### Diagnostic upgrade (run on the **best-val** checkpoint, not latest)
+Extend `src/sample/action_diagnostic.py` to report **per-component** sensitivity: GT vs **Δx-zeroed**
+(rotation only) vs **Δθ-zeroed** (translation only) vs all-zero vs random. Confirms *which* component the
+action branch grounds — we expect rotation healthy and want to verify translation is now non-trivial.
+Pass requires overall action-embed **RMS ~0.1+** and GT clearly beating zero/random.
+
+### Contingencies (only if Run 002 still fails the gate)
+- Translation sensitivity still ~0 but rotation healthy → the near-field-floor signal isn't being used:
+  try **cross-attention action injection** or larger action-embed dim (open-questions fallbacks #2/#3);
+  consider an **action-balanced loss** (rotation dominates raw latent change 44 vs 31 vs 12 floor).
+- Persistent overfit dominates the result → **collect more episodes** (open-questions: upper bound
+  ~130–190K transitions/room) and/or add augmentation (fallback #4).
+- Only then revisit **camera/odometry** changes (open-questions fallback #1) — now a last resort.
+
+### Implementation checklist (RESUME HERE — nothing below is done yet)
+
+**A. Code — best-val checkpoint.** In `external/nanowm/src/experiments/train_experiment.py`, after the
+`latest_checkpoint` append (~line 819), add (backward-compatible via `.get` → old configs still work):
+```python
+best_val_cfg = ckpt_cfg.get("best_val", None)
+if best_val_cfg is not None and best_val_cfg.get("enable", True):
+    best_val_checkpoint = ModelCheckpoint(
+        dirpath=os.path.join(checkpoint_dir, "best_val"),
+        filename=best_val_cfg.get("filename", "best-{epoch}-{step}-{val_loss:.4f}"),
+        monitor=best_val_cfg.get("monitor", "val_loss"),      # logged at train_experiment.py:295
+        mode=best_val_cfg.get("mode", "min"),
+        save_top_k=best_val_cfg.get("save_top_k", 3),
+        every_n_train_steps=best_val_cfg.get("every_n_train_steps", None),  # None → saves at each val end
+        save_on_train_epoch_end=False,
+        save_weights_only=best_val_cfg.get("save_weights_only", False),
+    )
+    callbacks_list.append(best_val_checkpoint)
+```
+Cadence = `val_every_n_steps` (already wired to Trainer `val_check_interval`, line 823).
+
+**B. Config — `src/configs/dataset/lerobot/lekiwi.yaml`:** `frame_interval: 5 → 10`; in `loader:` add
+`validation_size: null`, `validation_fixed_subset_size: 256` (seed 42 is inherited).
+
+**C. Config — `src/configs/experiment/lekiwi_nav.yaml`:** set `max_steps: 12000`,
+`val_every_n_steps: 250`, and a `checkpointing:` override block:
+`across_timesteps.every_n_train_steps: 1000`, `latest.every_n_train_steps: 500`, and a new
+`best_val: {enable: true, monitor: val_loss, mode: min, save_top_k: 3, filename: "best-{epoch}-{step}-{val_loss:.4f}"}`.
+
+**D. Diagnostic upgrade (optional, do before re-gating):** per-component sensitivity in
+`src/sample/action_diagnostic.py` (see "Diagnostic upgrade" above).
+
+**E. Launch:** `bash scripts/run_training.sh` in tmux (env: uv venv `/workspace/nanowm-venv`,
+`LEKIWI_DATA_ROOT=/workspace/data/lekiwi`). Monitor wandb `nanonav`. ~20 epochs on 1× H100.
+
+**F. Re-gate:** run `action_diagnostic.py` (+ chunk/stationary probes) on the **best-val** checkpoint
+(`<run>/checkpoints/best_val/`), NOT latest. Pass = action-embed RMS ~0.1+, GT clearly < zero/random,
+and (new) non-trivial Δθ-zeroed (translation-only) sensitivity. Then fill the telemetry template above.
+
+### Setup (fill at launch)
+- frame_interval: **10**   action_aggregation: integrate_se2   action_dim: 2
+- Effective batch: 64 (batch_size 16 × grad_accum 4)   lr: 1e-4   max_steps: ~12000
+- val: 5 eps, fixed seeded subset 256   val_every_n_steps: 250
+- checkpointing: across_timesteps(1000) + latest(500) + **best_val(val_loss, top-3)**
+- pod: 1× H100 80 GB   wandb: <url>   fork SHA / NanoNAV SHA: <fill>
+
+---
+
 ## Run 001 — 2026-06-02
 
 **Status:** aborted (stopped ~step 23K of 50K — overfitting; diagnostic FAILED at step 10K)
@@ -124,3 +242,12 @@ Add a new entry at the top for each run, using the template below. Keep entries 
   translation observability** (re-tilt/relocate camera for parallax, and/or add pose/odometry auxiliary
   conditioning for Δx), raise capture SNR (exposure/WB lock, avoid lossy AV1), then re-collect/retrain
   and re-run the diagnostic. See [[experiment-log]], [[open-questions]]. Do NOT just train longer.
+- **⚠️ CORRECTION (2026-06-03):** the "translation observability" diagnosis above is **wrong**. A
+  controlled stationary-vs-translation contrast (`viz/stationary-vs-translation/`,
+  `src/sample/stationary_vs_translation.py`) shows pure-translation chunks change the SD-VAE latent ~2×
+  more than stationary (AUC 0.94 @ f=5 → 0.98 @ f=10; clean dose-response; near-field-floor footprint).
+  The `corr(|Δx|,·)≈0` and the `0.23` above were artifacts of bang-bang Δx + pooled rotation chunks.
+  **The FAIL was a TRAINING artifact:** the step-10K (epoch-16) checkpoint was deep into overfitting
+  (val bottomed ~epoch 3; no best-val ckpt was kept) **at f=5**, where translation's signal only ≈ the
+  noise floor (~1:1; 1.6:1 at f=10). **⇒ retry as Run 002 (f=10, best-val checkpointing) — no camera
+  change needed.** See the Run 002 plan below and [[experiment-log]] (2026-06-03).

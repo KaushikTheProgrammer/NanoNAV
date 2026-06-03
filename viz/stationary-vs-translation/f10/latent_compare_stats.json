@@ -1,0 +1,43 @@
+{
+  "frame_interval": 10,
+  "chunk_ms": 333.3333333333333,
+  "thresholds_cm_deg": {
+    "dx_eps": 0.3,
+    "dth_eps": 0.5,
+    "dx_hi": 1.3,
+    "dth_hi": 4.0
+  },
+  "n": {
+    "stationary": 182,
+    "translation": 1971,
+    "rotation": 304
+  },
+  "latentL2": {
+    "stationary": {
+      "mean": 11.930704790387548,
+      "median": 12.403793811798096,
+      "std": 4.504831813559421
+    },
+    "translation": {
+      "mean": 30.638910086378022,
+      "median": 30.675947189331055,
+      "std": 5.5659384544606985
+    },
+    "rotation": {
+      "mean": 44.36201613200338,
+      "median": 45.312381744384766,
+      "std": 5.326285285317697
+    }
+  },
+  "translation_vs_stationary": {
+    "delta_mean_L2": 18.708205295990474,
+    "SNR_over_noise_floor": 4.152919813716305,
+    "cohens_d": 3.694894102162542,
+    "AUC_trans_gt_stat": 0.977885381994971
+  },
+  "rotation_vs_stationary_control": {
+    "delta_mean_L2": 32.43131134161584,
+    "cohens_d": 6.574774323681698,
+    "AUC_rot_gt_stat": 0.9989517061885483
+  }
+}

@@ -8,10 +8,13 @@
 ### Frame interval f tuning
 f=5 (167ms chunks) matches PushT baseline. Navigation may benefit from larger f (more ground covered per model step, same CEM dimensionality). But larger f → larger Δx → coarser body-frame delta approximation. Test f=5 first, try f=8-10 if CEM reach is insufficient.
 
-**Resolved for the action-conditioning purpose (2026-06-02):** raising f does **not** improve action
-observability — `corr(|Δx|, latentL2) ≈ 0` for all f∈{5,8,10,15,20} (translation is de-magnified by the
-high camera), while rotation is already observable. f may still matter for *CEM reach* later, but it is
-**not** a lever for the failed action diagnostic. See the "weak action SNR" update below + `viz/signal-fsweep/`.
+~~**Resolved for the action-conditioning purpose (2026-06-02):** raising f does not improve action
+observability...~~ **REVERSED (2026-06-03).** That conclusion rode on the broken `corr(|Δx|, latentL2)`
+metric. The controlled stationary-vs-translation contrast (`viz/stationary-vs-translation/`) shows
+**raising f DOES improve translation observability**: translation's SNR over the noise floor goes
+0.96× (f=5) → 1.34× (f=8) → 1.57× (f=10) → 1.93× (f=20), AUC 0.94→0.98. **f=10 is chosen for Run 002**
+(best signal/floor without over-coarsening the chunk). f also still helps CEM reach. See the corrected
+"weak action SNR" update below + `viz/stationary-vs-translation/README.md`.
 
 ### Trajectory validation tool
 Need to build offline visualization: take raw velocity logs, integrate body-frame deltas, plot world-frame trajectory, verify against odometry. Confirms the integration math before training.
@@ -35,8 +38,12 @@ flat-scoring threshold (~30 cm) is hit after very few chunks → reinforces both
 ### Will action branch survive with real-world data?
 PushT action conditioning works in sim with clean renders. Real-world camera noise, slight lighting variations, and visual complexity might make unconditional prediction harder — which could either help (model NEEDS the action to predict) or hurt (too much visual noise drowns the action signal). Table 5/6 diagnostic is the gate.
 
-**ANSWERED — Table 5/6 FAILED on Run 001 (2026-06-02). The action branch did NOT survive; visual
-noise drowns the action signal — and we quantified exactly why.** See [[training-runs]] Run 001 and
+**PARTLY ANSWERED, THEN REINTERPRETED (see 2026-06-03 correction at the end of this item).** Table 5/6
+FAILED on Run 001, but the cause is a **training** problem (overfit + low-SNR f=5), not a fundamental
+"visual noise drowns the signal" problem — translation is in fact observable.
+
+**ANSWERED — Table 5/6 FAILED on Run 001 (2026-06-02). The action branch did NOT survive on this
+checkpoint — original (later-corrected) reading: visual noise drowns the action signal.** See [[training-runs]] Run 001 and
 [[experiment-log]] (eval session). Diagnostic on the step-10K checkpoint: action-embedding **RMS
 0.0088** (need ~0.1+; paper's SD-VAE 0.1119), GT final-latent L2 37.8 vs zero 42.0 / random 42.4 (GT
 only ~10% better). Root cause, from `chunk_motion_viz.py` over 960 chunks:
@@ -66,6 +73,18 @@ retraining, split by action component (`chunk_motion_viz.py`; figures in `viz/si
 ⇒ The fix must restore *translation* observability: a **lower / more forward-facing camera** (or
 richer near-field floor texture) for parallax per cm, and/or **auxiliary pose/odometry conditioning**
 for Δx (fallback #1 below), plus lowering the non-action floor (exposure/WB lock, avoid lossy AV1).
+
+**⚠️ CORRECTION (2026-06-03) — translation IS observable; the above "translation-observability" framing
+is WRONG.** The `corr(|Δx|, latentL2)≈0` statistic was a bad estimator (bang-bang Δx → no within-moving
+variance; pooled pure-rotation chunks → high latentL2 at ~0 Δx, dragging corr to ~0). The **controlled
+stationary-vs-translation contrast** (`stationary_vs_translation.py`, `viz/stationary-vs-translation/`)
+holds rotation near zero and finds **pure-translation chunks change the SD-VAE latent ~2× more than
+stationary** (AUC 0.94 @ f=5 → 0.98 @ f=10/20), with a monotonic dose-response (signal scales with Δx,
+floor flat) and a near-field-floor parallax footprint. So the Run 001 failure is **training-side**:
+the diagnosed checkpoint was **overfit** (step-10K = epoch 16; val bottomed ~epoch 3, no best-val ckpt)
+**at f=5** where translation's signal only ≈ the noise floor (~1:1; it's 1.6:1 at f=10). **The fix is
+Run 002** (retrain at f=10 + best-val checkpointing), NOT a camera change — fallbacks #1–4 below are now
+contingencies if Run 002 still fails. See [[experiment-log]] (2026-06-03), [[training-runs]] (Run 002 plan).
 
 ### If Table 5/6 fails — fallback options
 1. Add absolute global pose as auxiliary conditioning (environment-specific but maximally informative)

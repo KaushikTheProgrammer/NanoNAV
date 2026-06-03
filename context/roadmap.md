@@ -46,17 +46,23 @@ NanoWM-B/2, v-prediction, additive injection, SD-VAE. Integrated `(Δx, Δθ)` a
 **overfit by epoch ~3** (50 episodes is tiny for B/2; 50K steps = ~81 epochs, and the config saved no
 best-val checkpoint) and was stopped at ~23K steps. See [[runpod-setup]], [[training-runs]].
 
-## ❌ Stage 5 — Action-Conditioning Diagnostic (Table 5/6) — **FAILED on Run 001**
+## ❌ Stage 5 — Action-Conditioning Diagnostic (Table 5/6) — **FAILED on Run 001 (training cause, retry as Run 002)**
 
 `action_diagnostic.py` (GT / zero / random rollouts): GT latent-L2 must clearly beat zero/random and
 action-embedding RMS must be ~0.1+. **Run 001 (step-10K ckpt): FAIL** — RMS **0.0088**, GT 37.8 vs
-zero 42.0 / random 42.4. Root cause, refined by the 2026-06-02 **frame-interval sweep** (f=5→20, no
-retraining; `viz/signal-fsweep/`): the failure is **translation-observability** — `corr(|Δx|, latentL2)
-≈ 0` at *every* f (the elevated ~55° camera de-magnifies forward motion), while `corr(|Δθ|, latentL2)
-≈ 0.64–0.70` (rotation is well observed). **⇒ the earlier "fix = f=8–10" is REFUTED** (raising f grows
-Δx 4× but leaves corr at ~0). The fix must restore translation observability (camera relocation/tilt
-for parallax, and/or auxiliary pose/odometry conditioning for Δx) + lower the non-action latent floor
-(exposure/WB lock, avoid lossy AV1). See [[open-questions]], [[experiment-log]], [[training-runs]].
+zero 42.0 / random 42.4.
+
+**Root cause CORRECTED (2026-06-03): a TRAINING problem, not observability.** A controlled
+stationary-vs-translation latent contrast (`stationary_vs_translation.py`,
+`viz/stationary-vs-translation/`) shows **translation IS observable** — pure-translation chunks change
+the SD-VAE latent ~2× more than stationary ones (AUC 0.94 @ f=5 → 0.98 @ f=10), with a clean
+dose-response and a near-field-floor parallax footprint. The earlier `corr(|Δx|, latentL2)≈0` (and the
+2026-06-02 "translation unobservable / f refuted" conclusion) was an artifact of bang-bang Δx + pooled
+rotation chunks. ⇒ The diagnosed checkpoint was simply **overfit** (step-10K = epoch 16; val bottomed
+~epoch 3, no best-val ckpt kept) **at a low-SNR f=5** (translation ≈ noise floor). **Fix = Run 002**
+(retrain at **f=10**, best-val checkpointing, low `max_steps`; re-diagnose the best-val model). Camera
+relocation / odometry conditioning is demoted to a fallback. See [[training-runs]] (Run 002 plan),
+[[open-questions]], [[experiment-log]].
 
 ## ⬜ Stage 6 — Short-Range Planner (CEM/MPC)
 
@@ -78,9 +84,10 @@ actions. See [[open-questions]].
 
 ## Current critical path
 
-✅ 3a (built) → ✅ 4 (Run 001 trained, overfit) → ❌ 5 (diagnostic FAILED — **translation
-unobservable**; ~~f=8–10~~ refuted by the f-sweep) → **▶️ decide the camera/representation fix
-(re-tilt/relocate camera for translational parallax, and/or add pose/odometry aux conditioning for
-Δx; raise capture SNR)** → re-collect/retrain → re-run diagnostic → (gate must pass before) 6
-(planner). The diagnostic FAIL is the current blocker; do not build the planner until the action
-branch is healthy (RMS ~0.1+).
+✅ 3a (built) → ✅ 4 (Run 001 trained, overfit) → ❌ 5 (diagnostic FAILED on an **overfit f=5**
+checkpoint — *not* an observability problem; translation is observable, see
+`viz/stationary-vs-translation/`) → **▶️ Run 002: retrain at f=10 with best-val checkpointing + low
+max_steps, then re-run the diagnostic on the best-val model (+ per-component Δx/Δθ sensitivity)** →
+(gate must pass before) 6 (planner). The diagnostic FAIL is the current blocker; do not build the
+planner until the action branch is healthy (RMS ~0.1+). Camera relocation / odometry conditioning is a
+**fallback** if Run 002 still fails, no longer the primary plan.

@@ -1,3 +1,11 @@
+> **⚠️ SUPERSEDED IN PART (2026-06-03).** This sweep's headline — "`corr(|Δx|, latentL2) ≈ 0` ⇒
+> translation is unobservable, raising f can't help" — is **wrong**. `corr(|Δx|, ·)` is a bad estimator
+> here (bang-bang Δx → no within-moving variance; pooled pure-rotation chunks → high latentL2 at ~0 Δx).
+> The **controlled stationary-vs-translation contrast** in `../stationary-vs-translation/` shows
+> translation IS observable (AUC 0.94 @ f=5 → 0.98 @ f=10) and that **raising f from 5→10 lifts
+> translation's SNR over the noise floor from ~1:1 to ~1.6:1**. The rotation observability numbers below
+> remain valid. Read this file as the (instructive) wrong turn; the corrected conclusion lives next door.
+
 # Per-chunk training-signal sweep over frame_interval (f = 5 / 8 / 10 / 15 / 20)
 
 **Question:** is there meaningful per-chunk training signal for the action branch, and does raising

@@ -6,16 +6,21 @@ Use NanoWM (a diffusion-forcing world model) for goal-conditioned navigation on 
 
 ## Current Phase
 
-**Phase 4→5: First checkpoint trained; action-conditioning diagnostic FAILED — root cause is
-translation-observability.** Dataset built (50 eps / 44,926 frames → `/workspace/data/lekiwi`) and
-NanoWM-B/2 **Run 001** trained on a RunPod H100 (uv venv, `integrate_se2`, f=5, eff-bs 64). It
-**overfit by epoch ~3** and **failed the Table 5/6 gate** (action-embed RMS 0.0088 ≪ 0.1). A
-frame-interval sweep (f=5→20, no retraining; `chunk_motion_viz.py`, `viz/signal-fsweep/`) localized
-the cause: **the elevated ~55° camera de-magnifies forward motion** — `corr(|Δx|, SD-VAE latentL2) ≈ 0`
-at *every* f, while rotation is well observed (`corr(|Δθ|, latentL2) ≈ 0.64–0.70`). **Raising f is
-refuted as the fix.** **Next: a camera/representation change to restore translation observability**
-(re-tilt/relocate the camera for parallax, and/or add pose/odometry auxiliary conditioning for Δx;
-raise capture SNR). See [[training-runs]] (Run 001), [[experiment-log]], [[open-questions]].
+**Phase 4→5: First checkpoint trained; Table 5/6 diagnostic FAILED — but the cause is a TRAINING
+problem (overfit + low f), not a camera/observability one.** Dataset built (50 eps / 44,926 frames →
+`/workspace/data/lekiwi`) and NanoWM-B/2 **Run 001** trained on a RunPod H100 (uv venv, `integrate_se2`,
+f=5, eff-bs 64). It **overfit by epoch ~3** and the step-10K (epoch-16, overfit) checkpoint **failed
+the gate** (action-embed RMS 0.0088 ≪ 0.1).
+
+A **controlled stationary-vs-translation latent contrast** (2026-06-03; `stationary_vs_translation.py`,
+`viz/stationary-vs-translation/`) **overturned the earlier "translation is geometrically unobservable"
+conclusion**: holding rotation near zero, pure-translation chunks change the SD-VAE latent ~2× more than
+stationary ones (AUC 0.94 @ f=5 → 0.98 @ f=10/20), with a clean dose-response and a near-field-floor
+parallax footprint. The old `corr(|Δx|, latentL2)≈0` was an artifact of bang-bang Δx + pooled rotation
+chunks; **raising f from 5→10 lifts translation's SNR over the noise floor from ~1:1 to ~1.6:1.**
+**Next: Run 002 — retrain at f=10 with best-val checkpointing + low max_steps, then re-run the gate on
+the best-val model.** Camera relocation / odometry conditioning is demoted to a fallback, not a
+prerequisite. See [[training-runs]] (Run 001 + Run 002 plan), [[experiment-log]], [[open-questions]].
 
 ## Project Tracking
 

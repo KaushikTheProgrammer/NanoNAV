@@ -158,6 +158,50 @@ the quantity v-prediction is trained on. Figures + numbers in `viz/signal-fsweep
 6. ~~Run Table 5/6 action diagnostic~~ ✅ **FAILED** (RMS 0.0088)
 7. ~~Retrain at f=8–10~~ ❌ **refuted** by the f-sweep — translation is unobservable at all f; raising f
    won't revive the action branch (rotation already is observable).
-8. **Decide the camera/representation fix** ← current. Options: relocate/re-tilt camera for translational
-   parallax; add absolute-pose / odometry auxiliary conditioning for Δx; raise capture SNR
-   (exposure/WB lock, lossless codec). See [[open-questions]], [[roadmap]].
+8. ~~**Decide the camera/representation fix**~~ ← **SUPERSEDED by the 2026-06-03 entry below**: the
+   stationary-vs-translation contrast shows translation *is* observable, so a camera change is not
+   required. The fix is a better training run (Run 002). See the entry below.
+
+## 2026-06-03 — Stationary vs pure-translation contrast: translation IS observable — overturns the f-sweep conclusion
+
+Prompted by "compare the SD-VAE latents for a stationary robot vs a robot translating only", ran the
+**controlled** test the f-sweep's pooled `corr(|Δx|, latentL2)` could not: hold rotation near zero and
+contrast the latent-change distributions of STATIONARY (`|Δx|<0.3cm, |Δθ|<0.5°`) vs PURE-TRANSLATION
+(`|Δx|>1.3cm, |Δθ|<0.5°`) chunks, with PURE-ROTATION as a positive control. New tool
+`external/nanowm/src/sample/stationary_vs_translation.py`; figures + JSON in
+`viz/stationary-vs-translation/{f05,f08,f10,f20}/`.
+
+**Result — translation is clearly observable; the "geometrically unobservable / below the noise floor"
+conclusion is WRONG.** latentL2 = `‖z(k+f)−z(k)‖_F` (the v-pred target), seed 42, n_batches 80:
+
+| f | stationary μ | translation μ | rotation μ | signal/floor `(μt−μs)/μs` | AUC(trans>stat) |
+|---|---|---|---|---|---|
+| 5 | 12.0 | 23.5 | 38.5 | 0.96× | 0.942 |
+| 8 | 11.9 | 27.8 | 42.6 | 1.34× | 0.964 |
+| 10| 11.9 | 30.6 | 44.4 | 1.57× | 0.978 |
+| 20| 12.6 | 37.0 | 51.4 | 1.93× | 0.980 |
+
+- **AUC 0.94–0.98**: a random forward-driving chunk out-changes a random stationary chunk 94–98% of the
+  time. That is *not* below the noise floor.
+- **Dose-response proves causation**: as f grows (Δx 1.67→6.65 cm) the translation signal scales
+  monotonically while the stationary floor stays flat (~12). A scene/content confound cannot do that.
+- **Spatial footprint is physically correct** (the `latent_compare.png` heatmaps): translation lights up
+  the **near-field floor (bottom)** — parallax; rotation lights up the **far-field horizon (top)** — FOV
+  sweep. The robot body (bottom-center) is static in all classes (registration sanity check).
+
+**Why the old metric misled.** `corr(|Δx|, latentL2)≈0` is the wrong estimator: (1) `|Δx|` is bang-bang
+(≈0 or ≈1.67 cm at f=5) so there's no within-moving variance to correlate; (2) pure-rotation chunks
+(large latentL2 at ~0 Δx) drag the correlation to zero. **This refutes the 2026-06-02 "translation is
+unobservable / raising f can't help" conclusion** — in fact raising f from 5→10 lifts translation's SNR
+over the floor from ~1:1 to ~1.6:1.
+
+**Reinterpretation of the Run 001 action-branch failure (RMS 0.0088).** It is **not** an
+observability/camera problem — the signal is in the latent. The real causes are training-side and
+fixable without re-collecting data: **(a)** the diagnosed checkpoint (step 10K = epoch 16) was deep into
+overfitting (val bottomed ~epoch 3; no best-val checkpoint was kept), so an overfit model was measured;
+**(b)** at the trained **f=5** translation's signal only ≈ the noise floor (~1:1), trivially dropped
+under overfitting — at f=8–10 it's 1.3–1.6× the floor and far more learnable.
+
+⇒ Next is **Run 002, not a camera change**: retrain at **f=10**, add a **best-val checkpoint** + low
+`max_steps` so the diagnostic runs on the *best-val* model, and extend the action diagnostic to report
+**per-component** (Δx-only vs Δθ-only) sensitivity. See [[roadmap]] and [[training-runs]] (Run 002 plan).
