@@ -252,3 +252,42 @@ the val-best or the final checkpoint. Detail + table + plot in [[training-runs]]
 160M transformer is trained **from scratch** (`pretrained: null`). So this is a scene-specific dynamics
 model on a general perceptual backbone — it generalizes to novel trajectories/goals *within* the trained
 room, not across environments (single-room scope; see [[open-questions]]).
+
+## 2026-06-04 — Stage 6a: offline CEM planning eval — PASS, 6b green-lit at DDIM=3
+
+Built `src/sample/offline_planning_eval.py` (a standalone eval, NOT a registry env — LeKiwi has no
+simulator, so the sim-coupled `PlanningExperiment._run_mpc` doesn't fit; follows the Run-002 eval-tool
+pattern: load ckpt+dataset directly, run the REAL `CEMPlanner` + `DiffusionWorldModel`, grade against the
+dataset as a built-in answer key) + `configs/planning/lekiwi.yaml` (record/scaffold for 6b). Reuses
+unchanged: `CEMPlanner` (action_dim=2), `DiffusionWorldModel.rollout/encode_obs`, `create_objective_fn`,
+the integrate_se2 action stats.
+
+**Setup:** step-8000, **35 val scenes stratified by motion** (translation=9, pivot=8, arc=9, slow=9) across
+**all 5 val episodes** (cap ≤2/episode; pivot shortfall 8/9 logged — only 190 pivot slices in val), each
+goal `goal_H=3` chunks (~10 cm) ahead, swept over **DDIM ∈ {20,5,3}** at the cheap CEM config (32 samples ×
+3 opt × top-10). H100, ~22 min. Metrics per scene: `do_nothing` (floor), `gt_ceiling` (WM accuracy under GT
+actions), `cem_reached` (WM under CEM actions), `action_recovery` (denorm CEM vs GT (Δx,Δθ)), + decoded
+montages. All latent-L2 (same convention as the motion-rollout eval, so numbers are comparable ~30).
+
+**Result — all four acceptance gates pass:**
+1. **CEM beats `do_nothing` 100%** and lands near-WM-optimal: `reached_ratio = cem_reached/gt_ceiling`
+   0.99–1.11 in every bucket/DDIM. The residual gap to the goal is **WM prediction error, not planner
+   failure** (pivot/arc carry the larger gap, as predicted — still ≤1.11).
+2. **Action recovery:** forward/turn **sign 100%** (one DDIM=5 translation mis-signed a ~4° turn → 89% in
+   that cell; sign is nulled when the GT component is near-zero so a pivot's ~0 Δx isn't scored as noise),
+   magnitudes small (**dxErr ~0.6–2.0 cm, dθErr ~1.1–3.4°**) — CEM re-derives the true commands.
+3. **Decoded montages** (8, 2/bucket) show the CEM-planned WM rollout landing on the goal frame, including
+   arc (drive+turn) and pivot (pure rotation).
+4. **Cheap-sampler hold — decisive.** DDIM=3 does NOT degrade goal-reaching in any bucket — `cem_reached`
+   is *slightly lower* at DDIM=3 (overall 36.5→34.4, pivot 41.9→37.2). The pivot-softening risk flagged from
+   the controllability eval **did not show up in closed planning accuracy** (`gt_ceiling` also tightens at
+   fewer eta=0 DDIM steps; near-deterministic futures captured in 3 steps), so `reached_ratio` stays ~1.0.
+   ⇒ **the ~7 s/replan DDIM=3 / 32×3 regime is confirmed for 6b** (DDIM=5 fallback only if a turn-heavy
+   on-robot task regresses).
+
+**Caveat (honest):** val holds only 5 episodes, so spatial/landmark coverage is the dataset ceiling, not a
+sampling choice; and these are **open-loop** numbers on reachable dataset goals — closed-loop success
+(compounding execution error, real-robot dynamics) is 6b. Artifacts: `results/offline_planning_step8000/`
+(`offline_planning_eval.json` per-scene rows + aggregates, `montages/`, `run.log`). Detail + full table in
+[[planning]] "6a — RESULTS". **Stage 6a passes; the planner engine is validated; 6b (closed-loop on LeKiwi)
+is green-lit.**

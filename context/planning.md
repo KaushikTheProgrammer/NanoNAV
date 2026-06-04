@@ -199,13 +199,64 @@ python src/sample/offline_planning_eval.py \
 6c (waypoints). Goals are sampled from real forward trajectories so they *are* reachable — a failure is the
 planner/WM, not infeasibility.
 
+### 6a — RESULTS (ran 2026-06-04; **PASS — all four gates met, 6b green-lit at DDIM=3**)
+
+`src/sample/offline_planning_eval.py` built + run on step-8000 (H100, ~22 min). **35 scenes** stratified
+across **all 5 val episodes** — translation=9, pivot=8 (only 190 pivot slices exist in val; logged
+shortfall 8/9), arc=9, slow=9 — each planned at **DDIM ∈ {20, 5, 3}** (32 samples × 3 opt-steps × top-10,
+the cheap CEM config). Action stats confirm the integrate_se2 wiring (`mean [0.0221, −0.0006]`,
+`std [0.0141, 0.0707]`). Full per-scene rows + montages in `results/offline_planning_step8000/`.
+
+Latent-L2 (lower `cem_reached` better; `reached_ratio = cem_reached/gt_ceiling → 1` = CEM is WM-optimal):
+
+| DDIM | bucket | do_nothing | gt_ceiling | cem_reached | ratio | beats-floor | recov(norm) | dxErr cm | dθErr ° |
+|---|---|---|---|---|---|---|---|---|---|
+| **20** | translation | 43.7 | 30.8 | 30.1 | 0.99 | 100% | 0.66 | 0.8 | 1.1 |
+| | pivot | 55.6 | 38.3 | 41.9 | 1.10 | 100% | 1.69 | 1.9 | 3.4 |
+| | arc | 57.2 | 35.9 | 39.5 | 1.11 | 100% | 1.20 | 1.2 | 3.0 |
+| | slow | 48.0 | 35.3 | 35.2 | 1.00 | 100% | 1.04 | 1.1 | 2.2 |
+| | **overall** | **51.0** | **35.0** | **36.5** | **1.05** | **100%** | 1.13 | 1.2 | 2.4 |
+| **3** | translation | 43.7 | 29.2 | 29.4 | 1.02 | 100% | 0.62 | 0.6 | 1.4 |
+| | pivot | 55.6 | 36.0 | 37.2 | 1.05 | 100% | 1.50 | 1.7 | 3.0 |
+| | arc | 57.2 | 37.7 | 37.1 | 1.00 | 100% | 1.12 | 1.0 | 3.1 |
+| | slow | 48.0 | 35.5 | 34.2 | 1.00 | 100% | 1.12 | 1.2 | 2.3 |
+| | **overall** | **51.0** | **34.5** | **34.4** | **1.01** | **100%** | 1.08 | 1.1 | 2.5 |
+
+(DDIM=5 omitted for space — sits between, overall ratio 1.04. Full numbers in `run.log`.)
+
+**Gate-by-gate verdict:**
+1. **Beats `do_nothing` + near WM-optimal — PASS in every bucket.** `cem_reached < do_nothing` 100% of
+   scenes (e.g. translation 30 vs 44, pivot 42 vs 56). `reached_ratio` 0.99–1.11 across all buckets/DDIM
+   — CEM recovers essentially the best actions the WM allows; the residual gap to the goal is **WM
+   prediction error, not planner failure** (pivot/arc carry the largest gap, as predicted, but still ≤1.11).
+2. **Action recovery — PASS.** Forward/turn **sign match 100%** (one DDIM=5 translation scene mis-signed a
+   tiny ~4° turn → 89% in that one cell; sign is nulled when the GT component is near-zero so pivot Dx isn't
+   scored as noise). Magnitude errors small: **dxErr ~0.6–2.0 cm, dθErr ~1.1–3.4°** — CEM re-derives the
+   true commands, not just any goal-reaching ones.
+3. **Decoded montages — PASS.** 8 montages (2 per bucket) show the WM rollout under the CEM plan landing on
+   the goal frame, including arc (drive+turn) and pivot (pure rotation). `results/offline_planning_step8000/montages/`.
+4. **Cheap-sampler hold — PASS, decisively.** DDIM=3 does **not** degrade goal-reaching in any bucket — in
+   fact `cem_reached` is *slightly lower* at DDIM=3 everywhere (overall 36.5→34.4, **pivot 41.9→37.2**). The
+   pivot-softening risk flagged from the controllability eval **did not materialize in closed planning
+   accuracy** — `gt_ceiling` also tightens at fewer steps (eta=0 deterministic DDIM; the near-deterministic
+   futures are captured fine in 3 steps), so `reached_ratio` stays ~1.0. **⇒ the ~7 s/replan DDIM=3 / 32×3
+   regime is confirmed for 6b** (keep DDIM=5 as the fallback only if a turn-heavy on-robot task regresses).
+
+**Caveats (honest):** val holds only **5 episodes**, so spatial/landmark coverage is the dataset ceiling,
+not a sampling choice (motion-bucket balance is good *within* those 5). All numbers are **open-loop**
+planning accuracy on reachable dataset goals — closed-loop success (compounding execution error, real-robot
+dynamics) is 6b. `goal_H=3` (~10 cm) stays inside the reliable rollout window by design; longer range is 6c.
+
+**Bottom line:** the planner + world model + latent-L2 scoring form a working goal-reaching engine on
+held-out data, and it holds at the cheap sampler settings — **Stage 6a passes; 6b (closed-loop on LeKiwi)
+is green-lit** with step-8000, DDIM=3, 32 samples, 3 opt-steps, H=3, replan-every-chunk.
+
 ### Milestones
-- **6a — offline CEM eval (next; GPU). Spec'd — see "6a — Offline Planning Eval" above.** Standalone
-  `src/sample/offline_planning_eval.py` (NOT a registry env — LeKiwi has no simulator): CEM recovers
-  goal-reaching actions from held-out val frames, graded against the dataset answer key (`do_nothing` /
-  `gt_ceiling` / `cem_reached` / `action_recovery`) + decoded montages, swept over DDIM ∈ {20,5,3} to
-  confirm the cheap-sampler regime that makes 6b's ~7 s replan viable. Proves planner + WM + scoring before
-  any hardware; the validated planner is the engine 6b wraps.
+- **6a — offline CEM eval — ✅ DONE (2026-06-04, PASS).** `src/sample/offline_planning_eval.py` +
+  `configs/planning/lekiwi.yaml` (6b scaffold). 35 stratified val scenes × DDIM {20,5,3}: CEM beats
+  `do_nothing` 100%, `reached_ratio` ~1.0–1.1 (WM-optimal) in every bucket, action sign 100% / dxErr
+  ~1 cm / dθErr ~2.5°, montages land on goal, and **DDIM=3 holds** (no pivot collapse — see "6a — RESULTS").
+  ⇒ engine validated, 6b green-lit.
 - **6b — closed-loop on LeKiwi.** Real-robot env, stop-and-plan MPC, goal-image tasks. Needs the robot.
 - **6c — long-range.** Topological waypoint graph (Solution 1) once short-range MPC works.
 

@@ -68,21 +68,25 @@ step-8000 is the checkpoint to carry into Stage 6** (best GT accuracy + translat
 mis-ranked the checkpoints, so judging by rollouts was decisive. See [[training-runs]] (Run 002),
 [[open-questions]], [[experiment-log]].
 
-## ⬜ Stage 6 — Short-Range Planner (CEM/MPC) — **on the step-8000 checkpoint**
+## ▶️ Stage 6 — Short-Range Planner (CEM/MPC) — **6a DONE (PASS); 6b next**
 
 The CEM/MPC core already exists (`cem_planner.py` `CEMPlanner`, `diffusion_world_model.rollout`,
 `objective.py`, `preprocessor.py`, `planning_experiment.py` + `_sample_dset_goals`). Stage 6 is **wiring
 it for LeKiwi**: the `envs/` dir has no LeKiwi/dataset env. Plan (eval-grounded, see [[planning]] "Stage
 6 — Implementation Plan"):
-- **6a — offline CEM eval (next, GPU) — SPEC'D, ready to implement.** Standalone
-  `src/sample/offline_planning_eval.py` (NOT a registry env — LeKiwi has no simulator/`states.pth` layout,
-  so the sim-coupled `PlanningExperiment._run_mpc` doesn't fit). CEM recovers a goal-reaching action
-  sequence to a val frame `goal_H` chunks ahead, graded against the dataset answer key — `do_nothing` /
-  `gt_ceiling` / `cem_reached` / `action_recovery` + decoded montages — swept over **DDIM ∈ {20,5,3}** to
-  confirm the cheap-sampler regime that makes 6b's ~7 s/replan viable (else fall back to DDIM=5 / distill).
-  Open-loop planning accuracy, not closed-loop success (that's 6b). Full spec + run command + acceptance
-  criteria in [[planning]] "6a — Offline Planning Eval". Author locally; run on the H100 pod (~minutes).
-- **6b — closed-loop on LeKiwi:** real-robot env, stop-and-plan MPC, goal-image tasks.
+- **6a — offline CEM eval — ✅ DONE (2026-06-04, PASS).** Standalone `src/sample/offline_planning_eval.py`
+  (NOT a registry env — LeKiwi has no simulator/`states.pth` layout, so the sim-coupled
+  `PlanningExperiment._run_mpc` doesn't fit) + `configs/planning/lekiwi.yaml` (6b scaffold). CEM recovers a
+  goal-reaching action sequence to a val frame `goal_H=3` chunks ahead, graded against the dataset answer
+  key. **Result on step-8000, 35 stratified val scenes × DDIM {20,5,3}: all four gates pass** — CEM beats
+  `do_nothing` 100%, `reached_ratio` ~1.0–1.1 (WM-optimal) in every motion bucket, action sign 100% / dxErr
+  ~1 cm / dθErr ~2.5°, decoded montages land on the goal, and **DDIM=3 holds with no pivot collapse** (the
+  cheap-sampler concern did not materialize — `cem_reached` even dropped slightly). The residual goal gap is
+  WM prediction error, not planner failure. ⇒ the ~7 s/replan DDIM=3 / 32×3 regime is confirmed; the engine
+  is validated. Open-loop accuracy only — closed-loop is 6b. See [[planning]] "6a — RESULTS",
+  `results/offline_planning_step8000/`.
+- **6b — closed-loop on LeKiwi (next):** real-robot env, stop-and-plan MPC, goal-image tasks. Needs the
+  robot + the two integrate_se2 harness fixes noted in `configs/planning/lekiwi.yaml`.
 - **6c — long-range:** topological waypoint graph.
 
 Params from the evals: **step-8000**, **H = 3–5 chunks** (reliable rollout window; at f=10 → ~10–17 cm
@@ -107,7 +111,8 @@ actions. See [[open-questions]].
 (best-val checkpointing; 3 crashes fixed + pushed) → **▶️ 5: re-gating via rollouts** — the action
 branch is now alive/action-sensitive (clean gt<zero<random + visible motion tracking), the legacy RMS
 gate reads FAIL but is judged mis-calibrated; the **cross-checkpoint rollout eval** found rollout
-quality peaks at **~6K–8K** then overfits ⇒ **step-8000 is the chosen planner checkpoint** → **next: 6
-(planner)**. Decision gate for the planner is now **rollout health** (action separation + motion-tracking
-fidelity), not the RMS number. Camera
+quality peaks at **~6K–8K** then overfits ⇒ **step-8000 is the chosen planner checkpoint** → ✅ **6a
+(offline planner eval) PASSED** (35 stratified val scenes × DDIM {20,5,3}: CEM WM-optimal in every motion
+bucket, DDIM=3 holds, engine validated) → **next: 6b (closed-loop on LeKiwi)**. Decision gate for the
+planner is now **rollout health** (action separation + motion-tracking fidelity), not the RMS number. Camera
 relocation / odometry conditioning remains a **fallback** only if rollouts prove inadequate.
