@@ -98,7 +98,11 @@ it for LeKiwi**: the `envs/` dir has no LeKiwi/dataset env. Plan (eval-grounded,
   flip, convert ω×57.3; low-speed turn deadband noted) → **6b.1 open-loop replay ✅ DONE** (trajectories match
   on hardware; chunk-collapse ~0 cm even on a 117° arc; per-chunk timing pinned to 333 ms; action range
   corrected to ±30°/s; dataset read direct from parquet+mp4 since recent lerobot can't load v2.1) →
-  6b.2 shared engine module → 6b.3 closed-loop → 6b.4 goal capture → 6b.5 telemetry. Top trap: `theta.vel`
+  **6b.3 controller harness ✅ validated on hardware with a stub planner** (`scripts/lekiwi_mpc.py`:
+  stop-and-plan loop + precise timing + clamp + termination + rerun 0.26 telemetry, planner injected) →
+  **6b.2 engine ✅ authored** (fork `4720053` `src/sample/lekiwi_engine.LekiwiPlanner` wraps the 6a path +
+  live-frame letterbox preprocess + `CEMPlanner` `return_elites` patch; **pod-test pending** — no local GPU) →
+  6b.4 goal capture → 6b.5 telemetry. Top trap: `theta.vel`
   deg/s↔rad/s (57× scale). **Develop locally for free** (all authoring + the no-model robot checks 6b.0/6b.1
   with the Mac as lerobot client on the LAN, stub-planner end-to-end test); **resume on the pod only for live
   CEM inference** (swap stub→real WM, Mac/LAN→RunPod/Tailscale — a config swap, not a rewrite). Full spec in
