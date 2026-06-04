@@ -293,7 +293,8 @@ repeat until reached or step == max_steps:
         v_x = Δx / (f·Δt) ; ω = Δθ / (f·Δt)   with f·Δt = 10/30 = 0.333 s
         clamp → v_x∈[0, 0.1] m/s, ω∈[−0.32, 0.34] rad/s           (dataset range = safety envelope)
         send_action({x.vel:v_x, y.vel:0, theta.vel:ω, arm:hold}); sleep(0.333 s); send_action(zero)
-  6. LOG (rerun) live frame · decoded CEM-imagined rollout · goal · latent-dist-to-goal · (v_x,ω) · CEM loss
+  6. LOG (rerun) live frame · goal · decoded WINNING rollout · decoded TOP-K ELITE rollouts (CEM's
+                 selected candidates) · latent-dist-to-goal · (v_x,ω) · CEM loss
 ```
 Params carried straight from 6a: **step-8000, DDIM=3, 32 samples, 3 opt-steps, top-10, H=3,
 replan-every-chunk, chunk = 0.333 s.** Executing only the first chunk bounds model error to one step.
@@ -314,7 +315,7 @@ touches the robot):**
 | **6b.2** | **Engine module** | factor 6a's load + `DiffusionWorldModel` + `CEMPlanner` + action-stat helpers into one importable module so the live loop runs the *exact* validated path (no eval-vs-robot drift) | refactor of `offline_planning_eval.py` core |
 | **6b.3** | **Closed-loop MPC** | the stop-and-plan loop above; terminate on latent threshold or max_steps; per-step logging | `lekiwi_mpc.py` |
 | **6b.4** | **Goal capture + run harness** | `capture_goal.py` (drive-and-snapshot the `top` frame to a goal file; pre-staged photos use the same file interface) + run wrapper | `capture_goal.py` |
-| **6b.5** | **Telemetry (rerun) + success criteria** | per-step actual-vs-imagined montage + latent-distance-descent curve; success = robot visibly arrives within max_steps on ≥3 short tasks | rerun viz in the loop |
+| **6b.5** | **Telemetry (rerun) + success criteria** | per-step montage (live frame · goal · winning rollout · **the selected top-K elite rollouts**) + latent-distance-descent curve; success = robot visibly arrives within max_steps on ≥3 short tasks | rerun viz + small `CEMPlanner` elite-surfacing patch |
 
 **Goal spec:** real in-distribution `top` frames — **drive-and-snapshot** (teleop to the spot, capture the
 `top` frame, drive back to a start pose, run) and/or **pre-staged photos** from the same camera/mount/
@@ -329,6 +330,19 @@ convenience, not a NAT constraint). Bandwidth is trivial (one frame + a few imag
 ~8 s). Exact connect call is rerun-version-dependent (`rr.connect`/`connect_tcp`/`connect_grpc`) — pin to the
 installed version at implementation. **Zero-network fallback:** log to a `.rrd` on RunPod, `rsync` down, open
 in the Mac viewer (same data, not live).
+
+**Selected (elite) rollouts in the viz — requires a small `CEMPlanner` patch.** The visualization must show
+not just the final winning plan but **the top-K trajectories CEM actually selected** (the elites it refits to
+each iteration) — decoded through the VAE and logged to rerun as a candidate fan. That's what reveals whether
+CEM is converging on a sensible, peaked candidate set vs scattering. `CEMPlanner.plan()` currently returns
+only `mu` + `info={losses, final_loss, num_iterations}` and **discards** the per-iteration `topk_actions`
+(`cem_planner.py:194-195`). Patch — backward-compatible, gated by a `return_elites` flag so 6a behavior stays
+byte-identical: on the **final** opt-step, retain the elites and expose `info["elite_actions"]` [topk, H, 2]
+(+ `elite_losses`). **Efficiency:** those elite rollouts are *already computed* in the final scoring pass —
+retain their latent rollouts (`info["elite_latents"]` [topk, 1+H, D]) instead of re-rolling, so the viz pays
+only the VAE *decode* of the selected elites, not a second WM rollout. The MPC loop decodes the winning +
+top-K elite latents and logs them as a fan; cap the rendered count behind a flag (e.g. top-3..10) since extra
+decodes cost wall-time — which matters on the slow Mac-MPS path.
 
 **Traps that bite on hardware (not present in 6a):**
 1. **`theta.vel` units — deg/s vs rad/s (highest-risk silent bug).** The build script converted raw LeKiwi
