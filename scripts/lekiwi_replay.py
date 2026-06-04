@@ -119,6 +119,43 @@ def dataset_chunks(repo_id, root, episode, start, n_chunks, f):
     return chunks, raw
 
 
+def save_recorded_frames(repo_id, root, episode, start, n_chunks, f, n_frames, out_png):
+    """Dump n_frames evenly-spaced recorded `top` frames across the replayed range as a filmstrip."""
+    try:
+        try:
+            from lerobot.datasets.lerobot_dataset import LeRobotDataset  # type: ignore
+        except Exception:
+            from lerobot.common.datasets.lerobot_dataset import LeRobotDataset  # type: ignore
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        ds = LeRobotDataset(repo_id, root=root)
+        f0 = int(ds.episode_data_index["from"][episode])
+        f1 = int(ds.episode_data_index["to"][episode])
+        lo = f0 + start
+        hi = min(f1, lo + n_chunks * f)
+        idxs = np.linspace(lo, hi - 1, n_frames).round().astype(int)
+
+        fig, axes = plt.subplots(1, n_frames, figsize=(2.4 * n_frames, 2.6))
+        axes = np.atleast_1d(axes)
+        for ax, i in zip(axes, idxs):
+            img = np.asarray(ds[int(i)]["top"])
+            if img.ndim == 3 and img.shape[0] in (1, 3):     # CHW → HWC
+                img = np.transpose(img, (1, 2, 0))
+            if img.dtype != np.uint8:
+                img = (255 * np.clip(img, 0, 1)).astype(np.uint8) if img.max() <= 1.0 else img.astype(np.uint8)
+            ax.imshow(img.squeeze()); ax.axis("off")
+            ax.set_title(f"chunk ~{(i - lo) // f}", fontsize=8)
+        fig.suptitle(f"recorded `top` frames — ep{episode} (compare to the robot's live view)", fontsize=9)
+        fig.tight_layout()
+        out_png.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out_png, dpi=110, bbox_inches="tight")
+        print(f"[frames] recorded filmstrip → {out_png}")
+    except Exception as e:
+        print(f"[frames] could not save filmstrip ({e}) — skipped (the trajectory plot still stands).")
+
+
 # ----------------------------------------------------------------------------- reporting
 
 def cmd_table(chunks):
@@ -151,20 +188,43 @@ def plot_paths(cmds, raw_steps, out_png, title):
         gap = float(np.hypot(fx - xs[-1], fy - ys[-1]))
         print(f"[dead-reckon] recorded(fine 30Hz) path end (x={fx*100:+.1f}, y={fy*100:+.1f} cm); "
               f"chunk-approx endpoint gap ≈ {gap*100:.1f} cm  (the within-chunk-collapse error).")
+    net_turn = (ths[-1] - ths[0]) * 180 / pi
+    path_len = float(np.sum(np.hypot(np.diff(xs), np.diff(ys)))) * 100
+    print(f"[dead-reckon] net forward {xs[-1]*100:+.1f} cm, net lateral {ys[-1]*100:+.1f} cm, "
+          f"net turn {net_turn:+.1f}°, path length {path_len:.0f} cm.")
     try:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        plt.figure(figsize=(6, 6))
+        fig, (ax, axh) = plt.subplots(1, 2, figsize=(11, 5.2),
+                                      gridspec_kw={"width_ratios": [1.4, 1]})
+
+        # ---- left: top-down path with HEADING ARROWS (orientation = what you watch for) ----
         if fine is not None:
-            plt.plot(fine[0]*100, fine[1]*100, "-", color="0.6", lw=1, label="recorded (30 Hz)")
-        plt.plot(xs*100, ys*100, "-o", ms=3, label="chunked command (what we send)")
-        plt.plot([0], [0], "ks", ms=8, label="start")
-        plt.plot([xs[-1]*100], [ys[-1]*100], "r*", ms=14, label="commanded end")
-        plt.gca().set_aspect("equal"); plt.grid(alpha=.3); plt.legend(fontsize=8)
-        plt.xlabel("forward x (cm)"); plt.ylabel("lateral y (cm)"); plt.title(title)
+            ax.plot(fine[0]*100, fine[1]*100, "-", color="0.6", lw=1.2, label="recorded (30 Hz)")
+        ax.plot(xs*100, ys*100, "-o", ms=3, color="C0", label="chunked command (sent)")
+        # heading arrows at up to ~14 evenly-spaced waypoints
+        step = max(1, len(xs) // 14)
+        idx = list(range(0, len(xs), step))
+        alen = max(extent, 0.05) * 100 * 0.12        # arrow ≈ 12% of the figure extent
+        ax.quiver(xs[idx]*100, ys[idx]*100, np.cos(ths[idx]), np.sin(ths[idx]),
+                  color="C3", angles="xy", scale_units="xy", scale=1.0/alen,
+                  width=0.006, label="heading")
+        ax.plot([0], [0], "gs", ms=11, label="START (robot here, facing +x →)")
+        ax.plot([xs[-1]*100], [ys[-1]*100], "r*", ms=16, label="expected END")
+        ax.set_aspect("equal"); ax.grid(alpha=.3); ax.legend(fontsize=8, loc="best")
+        ax.set_xlabel("forward x (cm)"); ax.set_ylabel("lateral y (cm)  (+y = left)")
+        ax.set_title(title)
+
+        # ---- right: heading vs chunk (when does it turn, and which way) ----
+        axh.plot(np.arange(len(ths)), ths * 180 / pi, "-o", ms=3, color="C3")
+        axh.axhline(0, color="0.7", lw=.8)
+        axh.grid(alpha=.3); axh.set_xlabel("chunk #"); axh.set_ylabel("heading (°, + = CCW/left)")
+        axh.set_title("heading vs chunk — compare to where the robot turns")
+
+        fig.tight_layout()
         out_png.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(out_png, dpi=110, bbox_inches="tight")
+        fig.savefig(out_png, dpi=110, bbox_inches="tight")
         print(f"[dead-reckon] trajectory plot → {out_png}")
     except Exception as e:
         print(f"[dead-reckon] (matplotlib unavailable: {e} — skipped plot; numbers above stand)")
@@ -193,6 +253,9 @@ def main():
     ap.add_argument("--ip", default=DEFAULT_PI_IP)
     ap.add_argument("--id", default=DEFAULT_ROBOT_ID)
     ap.add_argument("--out", default="viz/lekiwi_6b1")
+    ap.add_argument("--save-frames", type=int, default=0,
+                    help="dataset: also dump N evenly-spaced recorded `top` frames as a filmstrip "
+                         "(sanity-check the path against the room)")
     args = ap.parse_args()
 
     # ---- build the chunk sequence ----
@@ -206,7 +269,12 @@ def main():
 
     cmds = cmd_table(chunks)
     out = Path(args.out)
-    extent = plot_paths(cmds, raw, out / f"{args.source}_{args.pattern if args.source=='synthetic' else 'ep'+str(args.episode)}.png", title)
+    tag = args.pattern if args.source == "synthetic" else f"ep{args.episode}"
+    extent = plot_paths(cmds, raw, out / f"{args.source}_{tag}.png", title)
+
+    if args.save_frames and args.source == "dataset":
+        save_recorded_frames(args.repo_id, args.root, args.episode, args.start,
+                             len(chunks), args.f, args.save_frames, out / f"dataset_{tag}_frames.png")
 
     if not args.execute:
         print("\n[dry-run] no robot motion. Review the table + plot; re-run with --execute "
