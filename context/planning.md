@@ -110,9 +110,12 @@ offline; for 6b closed-loop the H100 is the better box).
 ### Develop vs run (cheap-box workflow)
 - **Develop/plan anywhere (no GPU):** all of 6a's code (env, config, CEM wiring, action math) is just the
   **repo** — write + unit-test it on a cheap box; no checkpoint/dataset/GPU needed to author it.
-- **Run 6a (GPU):** needs a CUDA GPU + the step-8000 ckpt + dataset (`/workspace/data/lekiwi`) + venv
-  (`/workspace/nanowm-venv`) — **all on this RunPod volume**. Spin the H100 (or any cheaper GPU —
-  stop-and-plan is light) up on demand; the data stays here, nothing to move.
+- **Run 6a (GPU):** needs a CUDA GPU + step-8000 + dataset + venv. On *this* RunPod volume they're at
+  `/workspace/results/…/epoch=13-step=8000.ckpt`, `/workspace/data/lekiwi`, `/workspace/nanowm-venv`.
+  On *any other* machine, pull the **HF backups** (private, namespace `kaushikpraka`):
+  `load_checkpoint("kaushikpraka/nanowm-lekiwi-b2-f10-step8000")` for the model (config + safetensors)
+  and `kaushikpraka/wm-smallarea_nav30` for the dataset (the repo_id the loader already references).
+  Spin the H100 (or any cheaper GPU — stop-and-plan is light) up on demand.
 - **Run 6b:** the LeKiwi robot + a small edge GPU.
 
 ---
