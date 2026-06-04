@@ -251,13 +251,135 @@ dynamics) is 6b. `goal_H=3` (~10 cm) stays inside the reliable rollout window by
 held-out data, and it holds at the cheap sampler settings — **Stage 6a passes; 6b (closed-loop on LeKiwi)
 is green-lit** with step-8000, DDIM=3, 32 samples, 3 opt-steps, H=3, replan-every-chunk.
 
+### 6b — Closed-Loop MPC on LeKiwi (implementation spec, 2026-06-04)
+
+**The one question 6b answers:** *does the 6a-validated planner actually drive the real robot to a goal
+view* — stop-and-plan MPC on hardware, closing the loop 6a left open (open-loop accuracy → closed-loop
+arrival). The engine is fixed; 6b is the robot/network/safety wrapper around it.
+
+**Architecture decision — RunPod is the lerobot *client*; the Pi keeps running the host (teleop already
+works).** Original framing was "Pi → custom RunPod inference API → Pi". Because lerobot LeKiwi teleop is
+already working, the cleaner shape reuses that tested transport:
+
+```
+┌────────── Raspberry Pi (on LeKiwi) ──────────┐        ┌────────── RunPod H100 (one process) ──────────┐
+│  LeKiwiHost (lerobot, ALREADY RUNNING)        │        │  lekiwi_mpc.py:                                │
+│   • ZMQ PUB  → observation.images.top + state │◄──────►│   • LeKiwiClient (lerobot)                    │
+│   • ZMQ PULL ← base velocity + arm hold       │ Tail-  │   • DiffusionWorldModel + CEMPlanner (6a core)│
+│   • host watchdog: no cmd → motors stop       │ scale  │   • stop-and-plan MPC loop + rerun telemetry  │
+└───────────────────────────────────────────────┘ (WG)  └───────────────────────────────────────────────┘
+```
+
+**No bespoke HTTP inference API, no separate inference server.** The LeKiwiClient runs *on RunPod*, so
+`get_observation()`/`send_action()` ARE the obs/command transport (lerobot ZMQ over Tailscale) and CEM
+inference is a local function call in the same process — strictly less code than a custom API, and the
+engine that runs is exactly the one 6a validated. Tailscale (WireGuard mesh) RTT home↔datacenter ~20–60 ms
+is negligible vs the ~7 s plan, and the robot is stopped during planning anyway. **Connectivity = Tailscale**
+(both Pi and RunPod on the same tailnet; RunPod dials the Pi's tailnet IP — survives IP changes, no router
+config, encrypted; fallbacks SSH reverse-tunnel / port-forward if ever needed).
+
+**The control loop (RunPod-side, per cycle ≈ 8–9 s):**
+```
+load engine ONCE: load_checkpoint → DiffusionWorldModel, CEMPlanner factory, action stats  (reuse 6a core)
+load goal image → pad-to-256 + normalize → obs_goal ; zg = encode_obs(obs_goal)
+connect LeKiwiClient over Tailscale ; capture arm pose once → hold it constant every step
+repeat until reached or step == max_steps:
+  1. STOP        send_action(zero base vel); settle ~0.5 s        (guarantee stationary)
+  2. OBSERVE     obs = get_observation(); frame = obs['observation.images.top'] → obs_0; z0 = encode_obs
+  3. TERMINATE?  latent_L2(z0, zg) < reach_thresh → success, break
+  4. PLAN        mu, info = planner.plan(obs_0, obs_goal)          # DDIM=3, 32×3 elites, ~7 s
+  5. EXECUTE 1st chunk only:
+        (Δx, Δθ) = denorm(mu[0,0])                                # m, rad
+        v_x = Δx / (f·Δt) ; ω = Δθ / (f·Δt)   with f·Δt = 10/30 = 0.333 s
+        clamp → v_x∈[0, 0.1] m/s, ω∈[−0.32, 0.34] rad/s           (dataset range = safety envelope)
+        send_action({x.vel:v_x, y.vel:0, theta.vel:ω, arm:hold}); sleep(0.333 s); send_action(zero)
+  6. LOG (rerun) live frame · decoded CEM-imagined rollout · goal · latent-dist-to-goal · (v_x,ω) · CEM loss
+```
+Params carried straight from 6a: **step-8000, DDIM=3, 32 samples, 3 opt-steps, top-10, H=3,
+replan-every-chunk, chunk = 0.333 s.** Executing only the first chunk bounds model error to one step.
+
+**CEM is unchanged from 6a — elites + iteration retained.** Per replan: 3 opt-steps × (sample 32 → score by
+latent-L2 → keep top-10 → refit μ,σ). The cheap regime came from **DDIM 20→3** (the dominant cost lever,
+inside each rollout), NOT from gutting CEM (64→32 samples / 5→3 opt-steps is the only outer-loop trim). If a
+turn-heavy on-robot task looks under-optimized, add quality back via opt-steps 3→5 or samples 32→64 (~linear
+cost, still <~15 s) *before* touching DDIM.
+
+**Sub-step decomposition (each gates the next — front-loads the cheap hardware-grounding before any CEM
+touches the robot):**
+
+| # | step | proves | new code |
+|---|---|---|---|
+| **6b.0** | **Transport + units bring-up** (no planning) | Tailscale up; RunPod `LeKiwiClient` ↔ Pi host; `get_observation()` returns a decodable `top` frame; `send_action()` drives the base; RTT measured; **sign/units of `x.vel` & `theta.vel` confirmed empirically** | tiny smoke script |
+| **6b.1** | **Open-loop replay** (velocity conversion, no CEM) | replay a recorded val episode's GT `(Δx,Δθ)` chunks → velocities → execute; eyeball it traces the recorded path (translation + a turn) | `replay_chunks.py` |
+| **6b.2** | **Engine module** | factor 6a's load + `DiffusionWorldModel` + `CEMPlanner` + action-stat helpers into one importable module so the live loop runs the *exact* validated path (no eval-vs-robot drift) | refactor of `offline_planning_eval.py` core |
+| **6b.3** | **Closed-loop MPC** | the stop-and-plan loop above; terminate on latent threshold or max_steps; per-step logging | `lekiwi_mpc.py` |
+| **6b.4** | **Goal capture + run harness** | `capture_goal.py` (drive-and-snapshot the `top` frame to a goal file; pre-staged photos use the same file interface) + run wrapper | `capture_goal.py` |
+| **6b.5** | **Telemetry (rerun) + success criteria** | per-step actual-vs-imagined montage + latent-distance-descent curve; success = robot visibly arrives within max_steps on ≥3 short tasks | rerun viz in the loop |
+
+**Goal spec:** real in-distribution `top` frames — **drive-and-snapshot** (teleop to the spot, capture the
+`top` frame, drive back to a start pose, run) and/or **pre-staged photos** from the same camera/mount/
+exposure. Both flow through one goal-image-file interface; `capture_goal.py` is the drive-and-snapshot helper.
+
+**Live telemetry — rerun over Tailscale.** Rerun's SDK (logging) and Viewer (rendering) are separate
+processes that talk over the network — built for exactly this. Add the **Mac to the same tailnet** (already
+up for the robot) and the cloud↔Mac link is LAN: run the **Viewer as a server on the Mac**, RunPod's
+`lekiwi_mpc.py` does `rr.init(...)` then connects to the Mac's tailnet IP and streams (the Mac-as-server
+direction survives RunPod restarts; both ends are directly addressable on the tailnet so direction is a
+convenience, not a NAT constraint). Bandwidth is trivial (one frame + a few imagined frames + scalars per
+~8 s). Exact connect call is rerun-version-dependent (`rr.connect`/`connect_tcp`/`connect_grpc`) — pin to the
+installed version at implementation. **Zero-network fallback:** log to a `.rrd` on RunPod, `rsync` down, open
+in the Mac viewer (same data, not live).
+
+**Traps that bite on hardware (not present in 6a):**
+1. **`theta.vel` units — deg/s vs rad/s (highest-risk silent bug).** The build script converted raw LeKiwi
+   `theta.vel` (deg/s) → rad/s for training, so the **model's ω is rad/s**; if lerobot `send_action` expects
+   deg/s, convert back (`ω·180/π`) — a 57× scale error on every turn otherwise. 6b.0 confirms with a known
+   command; 6b.1 confirms sign+scale on a real path before any CEM.
+2. **Constant-velocity-within-chunk approximation.** Model trained on the *integrated* delta of per-step
+   velocities that varied within a chunk; we execute one constant velocity for 0.333 s. Mild for bang-bang
+   data but real — watch for systematic under/over-shoot in 6b.1.
+3. **Arm joints in the action dict.** LeKiwi's action includes 6 arm joints; navigate the base only — capture
+   the arm pose once and re-send it constant, or the arm sags/drifts.
+4. **Camera/mount/exposure match.** Goal frame and live frames must be the same `top` mount/exposure as
+   training — drive-and-snapshot guarantees it; pre-staged photos are the risk case (re-shoot if the mount
+   moved).
+5. **Reach-threshold calibration.** From 6a, real-frame `do_nothing` ~44–57, `gt_ceiling` ~30–38 (latent-L2).
+   Start `reach_thresh` ≈ **35** and tune.
+6. **Heading drift.** Small ω sign/scale bias compounds across steps; replan-every-chunk from a fresh
+   observation bounds it, but a *systematic* bias won't self-correct — flag if 6b.1 shows consistent curl.
+
+**Safety (build in from 6b.0):** per-command **velocity clamp** to the dataset envelope (guards OOD CEM
+proposals); the Pi **host watchdog** is a free fail-stop (no commands → motors stop, so a Tailscale drop or
+RunPod crash halts the robot — verify by killing the network mid-run); a **global speed scale** (~0.5×) on
+first closed-loop runs; **Ctrl-C e-stop** (zero + exit) plus a physical kill within reach; **`max_steps`** cap
+(~30).
+
+**Acceptance criteria (gate 6b → 6c):**
+1. **6b.0:** `top` frame decodes on RunPod; base moves in the commanded direction; RTT < 1 s; `x.vel`/
+   `theta.vel` sign+units documented.
+2. **6b.1:** open-loop replay visibly traces a recorded path including a turn (gross tolerance).
+3. **6b.3:** on **≥3 short drive-and-snapshot tasks** (one translation-dominant, one turn-heavy, one arc),
+   latent-distance-to-goal descends and the robot **visibly arrives at the goal view** within max_steps; the
+   actual-vs-imagined montage shows the imagined rollout tracking reality.
+4. **Safety verified live:** clamp + watchdog (network-kill → stop) both confirmed.
+
+**Out of scope (stays future):** long-range goals >~30 cm where latent-L2 flattens → **6c** waypoint graph;
+on-board/edge-GPU autonomy (cutting RunPod out) → Stage 8; smooth non-stop-and-plan control → later (DDIM=3's
+~7 s plan makes continuous control infeasible without step-distillation).
+
 ### Milestones
 - **6a — offline CEM eval — ✅ DONE (2026-06-04, PASS).** `src/sample/offline_planning_eval.py` +
   `configs/planning/lekiwi.yaml` (6b scaffold). 35 stratified val scenes × DDIM {20,5,3}: CEM beats
   `do_nothing` 100%, `reached_ratio` ~1.0–1.1 (WM-optimal) in every bucket, action sign 100% / dxErr
   ~1 cm / dθErr ~2.5°, montages land on goal, and **DDIM=3 holds** (no pivot collapse — see "6a — RESULTS").
   ⇒ engine validated, 6b green-lit.
-- **6b — closed-loop on LeKiwi.** Real-robot env, stop-and-plan MPC, goal-image tasks. Needs the robot.
+- **6b — closed-loop on LeKiwi — SPEC'D (2026-06-04), ready to implement; needs the robot.** RunPod runs
+  the lerobot `LeKiwiClient` (Pi keeps the working host) over **Tailscale**; stop-and-plan MPC wraps the
+  6a-validated engine; goals are real `top` frames (drive-and-snapshot / pre-staged); **rerun-over-Tailscale**
+  live telemetry to the Mac viewer. Sub-steps 6b.0 transport+units → 6b.1 open-loop replay → 6b.2 shared
+  engine module → 6b.3 closed-loop loop → 6b.4 goal capture → 6b.5 telemetry/success. Full spec + traps
+  (theta.vel deg/s↔rad/s, constant-vel-within-chunk, arm hold, reach-threshold ~35) + safety + acceptance
+  criteria above in "6b — Closed-Loop MPC on LeKiwi".
 - **6c — long-range.** Topological waypoint graph (Solution 1) once short-range MPC works.
 
 ### Develop vs run (cheap-box workflow)

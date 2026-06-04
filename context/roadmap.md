@@ -85,8 +85,14 @@ it for LeKiwi**: the `envs/` dir has no LeKiwi/dataset env. Plan (eval-grounded,
   WM prediction error, not planner failure. ⇒ the ~7 s/replan DDIM=3 / 32×3 regime is confirmed; the engine
   is validated. Open-loop accuracy only — closed-loop is 6b. See [[planning]] "6a — RESULTS",
   `results/offline_planning_step8000/`.
-- **6b — closed-loop on LeKiwi (next):** real-robot env, stop-and-plan MPC, goal-image tasks. Needs the
-  robot + the two integrate_se2 harness fixes noted in `configs/planning/lekiwi.yaml`.
+- **6b — closed-loop on LeKiwi — SPEC'D (next), ready to implement; needs the robot.** RunPod runs the
+  lerobot `LeKiwiClient` (the Pi keeps the already-working host) over **Tailscale** — so lerobot's ZMQ
+  transport IS the obs/command channel and CEM inference is a local call in the same process (no bespoke
+  inference API). Stop-and-plan MPC wraps the 6a-validated engine (step-8000, DDIM=3, 32×3, H=3,
+  replan-every-chunk); goals are real `top` frames (drive-and-snapshot / pre-staged); live telemetry via
+  **rerun-over-Tailscale** to the Mac viewer. Sub-steps 6b.0 transport+units → 6b.1 open-loop replay →
+  6b.2 shared engine module → 6b.3 closed-loop → 6b.4 goal capture → 6b.5 telemetry. Top trap: `theta.vel`
+  deg/s↔rad/s (57× scale). Full spec in [[planning]] "6b — Closed-Loop MPC on LeKiwi".
 - **6c — long-range:** topological waypoint graph.
 
 Params from the evals: **step-8000**, **H = 3–5 chunks** (reliable rollout window; at f=10 → ~10–17 cm
