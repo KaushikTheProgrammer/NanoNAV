@@ -325,3 +325,35 @@ visually. The first wheels-up pass therefore *looked* like "no rotation at any t
 `--on-ground` mode + fixed the misleading wheels-up messaging. **6b.0 passes; transport + units + signs are
 pinned → 6b.1 (open-loop replay) can convert recorded `(Δx,Δθ)` chunks to velocity with confidence.** See
 [[planning]] "6b — RESULTS (6b.0)".
+
+## 2026-06-04 — Stage 6b.1: open-loop replay — PASS (chunk approximation faithful, timing pinned)
+
+Built `scripts/lekiwi_replay.py` + `scripts/lekiwi_common.py` (the 6b.0 `(Δx,Δθ)→velocity` contract in one
+importable place). Converts a chunk sequence — **synthetic** patterns (forward/pivot/arc/square) or a
+**recorded episode's** integrated `(Δx,Δθ)` — to base velocities and drives them **open-loop** (no WM/CEM/GPU),
+with a dry-run that dead-reckons + plots (heading arrows + heading-vs-chunk) and an optional recorded-frame
+filmstrip. Outcomes:
+
+- **Trajectories match on hardware** (user-confirmed): synthetic and dataset episodes traced the dead-reckoned
+  plots in shape, turn direction, and extent.
+- **Constant-velocity-per-chunk approximation is faithful** — dead-reckon gap between the recorded fine 30 Hz
+  path and the chunked-command path is **~0.0 cm even through a 117° pivot-arc** (ep44). Teleop is smooth at
+  the 0.333 s chunk scale, so the collapse loses ~nothing ⇒ **6b.3's per-chunk velocity-hold won't add
+  meaningful error.** (A phantom 6.2 cm "gap" turned out to be a clamp bug, see below.)
+- **Per-chunk timing pinned.** Each chunk is now held for **exactly `CHUNK_DT`** (335–338 ms vs 333 ms target,
+  ~1.5%), down from up-to-19% overshoot — the old loop checked the deadline at the top then ran a full
+  `get_obs+sleep` iteration past it (~10–19% systematic over-travel at constant velocity). Fix: capture the
+  arm-hold once, send a precomputed action (no `get_observation` in the hot loop), pace against a fixed
+  deadline with a final partial sleep. The execute loop prints measured ms/target per chunk.
+- **Action range corrected** (measured across all 50 eps): `x.vel∈[0,0.10] m/s`, `theta.vel∈±30°/s`
+  (±0.5236 rad/s = ±π/6). The earlier ±0.34 rad/s undercounted the max; the safety clamp now uses ±30°/s.
+- **Dataset access fixed + version-proofed:** created the missing **`v2.1` codebase-version tag** on
+  `kaushikpraka/wm-smallarea_nav30` (it was untagged → `LeRobotDataset` refused to load). But a **recent
+  lerobot (v3.0) can't read v2.1** (`BackwardCompatibilityError`), so the script reads the **parquet
+  (`action`) + mp4 (`top`) directly** via `huggingface_hub`+`pyav` — no lerobot version gate. Confirmed the
+  stored `theta.vel` is **rad/s** as assumed.
+
+Artifacts: `viz/lekiwi_6b1/` (trajectory plots + filmstrips). **6b.1 passes — the `(Δx,Δθ)→velocity→robot`
+pipeline is grounded end-to-end on hardware.** Remaining 6b is the GPU-side live CEM: **6b.2** (shared engine
+module wrapping the 6a planner) → **6b.3** (closed-loop), resumed on the pod. Detail in [[planning]]
+"6b — RESULTS".

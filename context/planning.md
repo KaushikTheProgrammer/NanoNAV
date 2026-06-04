@@ -417,6 +417,17 @@ empirically pinned (full detail in [[experiment-log]] "Stage 6b.0"):
 ⇒ the `theta.vel` deg/s↔rad/s trap (the #1 6b risk) is **resolved**: convert ω→deg/s, no negation. 6b.1
 (open-loop replay) can now convert recorded `(Δx,Δθ)` chunks to velocity with confidence.
 
+**6b.1 open-loop replay — ✅ DONE (2026-06-04, PASS).** `scripts/lekiwi_replay.py` + `scripts/lekiwi_common.py`
+(the contract in one importable place). Trajectories **match on hardware** (synthetic + dataset episodes trace
+the dead-reckoned plots). Key results:
+- **Chunk approximation is faithful** — recorded-fine vs chunked-command dead-reckon gap ~**0.0 cm** even
+  through a 117° pivot-arc ⇒ 6b.3's per-chunk velocity-hold adds ~no error.
+- **Per-chunk timing pinned** to exactly `CHUNK_DT` (335–338 ms vs 333; was up-to-19% over → ~10–19% over-travel).
+- **Action range corrected:** `x.vel∈[0,0.10] m/s`, `theta.vel∈±30°/s` (±0.5236 rad/s); clamp updated.
+- **Dataset read direct (parquet+mp4)** — recent lerobot (v3.0) can't read the v2.1 dataset; created the `v2.1`
+  HF tag and bypass the version gate. Stored `theta.vel` confirmed rad/s.
+⇒ the full `(Δx,Δθ)→velocity→robot` pipeline is grounded on hardware. Remaining: GPU-side live CEM (6b.2→6b.3).
+
 ### Milestones
 - **6a — offline CEM eval — ✅ DONE (2026-06-04, PASS).** `src/sample/offline_planning_eval.py` +
   `configs/planning/lekiwi.yaml` (6b scaffold). 35 stratified val scenes × DDIM {20,5,3}: CEM beats
