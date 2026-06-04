@@ -34,7 +34,9 @@ must be added), and the loadable LeRobot release for the v2.x format is **`lerob
   in NanoWM.** Built via a parallel decode-once → sharded-encode → merge pipeline (`--extract-frames`
   / `--frames-cache` / `--episode-slice` + `scripts/merge_lekiwi_shards.py`), ~6 min vs ~45–60 min
   sequential; output verified byte-identical to a sequential build.
-- **3b — Validation:** load + decode + action-range sanity ✅ (vx∈[0,0.1] m/s, ω∈[−0.32,0.34] rad/s).
+- **3b — Validation:** load + decode + action-range sanity ✅ (vx∈[0,0.1] m/s, ω∈[−0.524,0.524] rad/s
+  = ±30°/s = ±π/6, the true range measured across all 50 episodes on 2026-06-04; an earlier
+  "[−0.32,0.34]" figure undercounted the max).
   SD-VAE `compare` of frame *k* vs *k+f* (visual-flow vs `(Δx, Δθ)`) still ⬜ — no independent
   odometry exists (state is velocity, not pose).
 

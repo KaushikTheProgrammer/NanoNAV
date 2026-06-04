@@ -291,7 +291,7 @@ repeat until reached or step == max_steps:
   5. EXECUTE 1st chunk only:
         (Δx, Δθ) = denorm(mu[0,0])                                # m, rad
         v_x = Δx / (f·Δt) ; ω = Δθ / (f·Δt)   with f·Δt = 10/30 = 0.333 s
-        clamp → v_x∈[0, 0.1] m/s, ω∈[−0.32, 0.34] rad/s           (dataset range = safety envelope)
+        clamp → v_x∈[0, 0.1] m/s, ω∈[−0.524, 0.524] rad/s (±30°/s)  (true dataset range = safety envelope)
         send_action({x.vel:v_x, y.vel:0, theta.vel:ω, arm:hold}); sleep(0.333 s); send_action(zero)
   6. LOG (rerun) live frame · goal · decoded WINNING rollout · decoded TOP-K ELITE rollouts (CEM's
                  selected candidates) · latent-dist-to-goal · (v_x,ω) · CEM loss
