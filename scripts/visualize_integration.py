@@ -40,30 +40,65 @@ def load_episodes(parquet: str):
     return eps
 
 
-def fig_world_trajectories(eps, out: Path, n=12):
+def fig_world_trajectories(eps, out: Path, n=12, n_arrows=8):
+    from matplotlib.collections import LineCollection
+
     ids = list(eps)[:n]
+    # Integrate once; gather a shared coordinate frame so every subplot is directly comparable.
+    trajs, tmax = {}, 0.0
+    gmin, gmax = np.inf, -np.inf
+    for ep in ids:
+        vx, omega = eps[ep]
+        p = integrate_trajectory(vx, omega, DT, theta_in_degrees=True)
+        trajs[ep] = p
+        gmin = min(gmin, p[:, :2].min())
+        gmax = max(gmax, p[:, :2].max())
+        tmax = max(tmax, (len(vx)) * DT)
+    pad = 0.05 * (gmax - gmin)
+    lo, hi = gmin - pad, gmax + pad          # identical square limits for all subplots
+    arrow_len = 0.03 * (hi - lo)             # heading-arrow length scaled to the shared frame
+
+    cmap = plt.cm.viridis
+    norm = plt.Normalize(0, tmax)
     cols, rows = 4, int(np.ceil(len(ids) / 4))
     fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 4 * rows))
     axes = np.atleast_1d(axes).ravel()
+
     for ax, ep in zip(axes, ids):
-        vx, omega = eps[ep]
-        p = integrate_trajectory(vx, omega, DT, theta_in_degrees=True)
+        p = trajs[ep]
         x, y, th = p[:, 0], p[:, 1], p[:, 2]
-        ax.plot(x, y, lw=1.0)
-        ax.scatter([0], [0], c="g", s=30, zorder=5, label="start")
-        ax.scatter([x[-1]], [y[-1]], c="r", s=30, zorder=5, label="end")
-        # heading arrows along the path
-        for k in range(0, len(x) - 1, max(1, len(x) // 15)):
-            ax.arrow(x[k], y[k], 0.02 * np.cos(th[k]), 0.02 * np.sin(th[k]),
-                     head_width=0.008, color="k", alpha=0.5)
-        ax.set_title(f"ep {ep}  ({len(vx)} steps)")
+        t = np.arange(len(x)) * DT
+
+        # path colored by time
+        pts = np.array([x, y]).T.reshape(-1, 1, 2)
+        segs = np.concatenate([pts[:-1], pts[1:]], axis=1)
+        lc = LineCollection(segs, cmap=cmap, norm=norm, linewidth=2.0)
+        lc.set_array(t[:-1])
+        ax.add_collection(lc)
+
+        # bold heading arrows (quiver), a handful evenly spaced along the path
+        ks = np.linspace(0, len(x) - 1, n_arrows + 2).astype(int)[1:-1]
+        ax.quiver(x[ks], y[ks], np.cos(th[ks]), np.sin(th[ks]),
+                  color="crimson", angles="xy", scale_units="xy",
+                  scale=1.0 / arrow_len, width=0.005, headwidth=4, headlength=5,
+                  zorder=6, alpha=0.9)
+
+        ax.scatter([0], [0], c="lime", s=60, ec="k", zorder=7, label="start")
+        ax.scatter([x[-1]], [y[-1]], c="red", s=60, ec="k", marker="s", zorder=7, label="end")
+        ax.set_title(f"ep {ep}  ({len(x)-1} steps, {t[-1]:.1f}s)", fontsize=10)
+        ax.set_xlim(lo, hi); ax.set_ylim(lo, hi)     # standardized grid
         ax.set_aspect("equal", "box")
         ax.grid(alpha=0.3)
+        ax.set_xlabel("x (m)"); ax.set_ylabel("y (m)")
+
     for ax in axes[len(ids):]:
         ax.axis("off")
-    axes[0].legend(fontsize=8)
-    fig.suptitle("Integrated world-frame trajectories (theta.vel as deg/s)", fontsize=14)
-    fig.tight_layout()
+    axes[0].legend(fontsize=8, loc="upper left")
+    fig.suptitle("Integrated world-frame trajectories (heading = crimson arrows, color = time)", fontsize=14)
+    fig.tight_layout(rect=[0, 0, 0.92, 1])
+    # shared time colorbar
+    cbar_ax = fig.add_axes([0.94, 0.15, 0.015, 0.7])
+    fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), cax=cbar_ax, label="time (s)")
     fig.savefig(out / "world_trajectories.png", dpi=110)
     plt.close(fig)
 
