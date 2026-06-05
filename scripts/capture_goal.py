@@ -118,8 +118,8 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     chunks = parse_chunks(args.drive) if args.drive else []
 
-    LeKiwiClient, LeKiwiClientConfig = lk.import_lekiwi()
-    robot = LeKiwiClient(LeKiwiClientConfig(remote_ip=args.ip, id=args.id))
+    LeKiwiClient, _ = lk.import_lekiwi()
+    robot = LeKiwiClient(lk.make_client_config(args.ip, args.id, cameras=("top",)))   # `top` or it's dropped
 
     def _stop(*_):
         try:

@@ -37,6 +37,30 @@ def import_lekiwi():
     # fallback some versions use: from lerobot.common.robots.lekiwi import ...
 
 
+# Camera frame sizes (height, width). NanoNAV trains + plans on `top` (480x640x3, the dataset res).
+LEKIWI_CAMERA_DIMS = {"top": (480, 640), "front": (480, 640), "wrist": (640, 480)}
+
+
+def make_client_config(remote_ip, robot_id="lekiwi", cameras=("top",)):
+    """
+    Build a LeKiwiClientConfig that EXPOSES the named cameras.
+
+    lerobot's LeKiwiClient filters incoming camera frames to the names in its OWN
+    `config.cameras`, and the default set (`lekiwi_cameras_config`) is {front, wrist} ONLY —
+    so `top` (the camera NanoNAV trains + plans on) is silently dropped from observations
+    unless it is added here (this bit the pod's lerobot 0.3.3 on 2026-06-05). The client never
+    opens these devices (the Pi host does); only the camera NAME and declared (h, w) matter, so
+    `index_or_path` is a harmless placeholder.
+    """
+    from lerobot.robots.lekiwi import LeKiwiClientConfig  # type: ignore
+    from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig  # type: ignore
+    cams = {}
+    for name in cameras:
+        h, w = LEKIWI_CAMERA_DIMS.get(name, (480, 640))
+        cams[name] = OpenCVCameraConfig(index_or_path="/dev/video0", fps=30, width=w, height=h)
+    return LeKiwiClientConfig(remote_ip=remote_ip, id=robot_id, cameras=cams)
+
+
 def feature_keys(robot, which):
     for attr in (f"{which}_features", f"{which}_feature", "features"):
         feats = getattr(robot, attr, None)
