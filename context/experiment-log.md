@@ -409,3 +409,35 @@ command (e.g. a missing `std` would zero the action) — so this is a hard preco
 A wrong-sign or wrong-scale stat is the one mistake that would pass every cheap check and still drive the
 robot wrong, so it's pinned here and in [[roadmap]]/[[planning]]. **6b.2 passes — the engine module is
 validated on real GPU + real frames; 6b.3 (closed-loop on LeKiwi) is unblocked, gated only on the robot.**
+
+## 2026-06-05 — Interactive WM driver + first closed-loop run on the real robot (6b.3) + rerun live-viz fix
+
+**Interactive WM "driving" evaluator** (`external/nanowm/src/sample/interactive_wm.py`, new). Browser tool
+to drive the world model open-loop with the keyboard (WASD → one action-chunk/keypress → decode the predicted
+frame) plus a CEM overlay (full imagined trajectory + elite endpoints toward a loaded goal). Headless-safe
+(stdlib `http.server`, no Flask); reuses `LekiwiPlanner`/`DiffusionWorldModel`. Smoke-tested on step-8000:
+do-nothing latent-L2 ≈ 0.015, open-loop step ≈ 0.2 s, CEM overlay ≈ 7.7 s @ DDIM=3, decoded frames are
+coherent top-views; far-goal demo (6 chunks, horizon 6) showed CEM closing only ~11 of 57 latent units with
+the imagined frames degrading past the 3-chunk train window — i.e. far goals need MPC replanning / waypoints,
+not a one-shot plan. Encodes in the **training pixel range ([-1,1])** to match the validated 6a path — note
+the 6b.2 engine's `_preprocess` feeds [0,1], a latent range mismatch worth revisiting.
+
+**First closed-loop run on the LeKiwi (`scripts/lekiwi_mpc.py --planner wm`, full speed, goal
+`goals/nearfan.png`).** Planning worked end-to-end on the real robot: engine loaded with the correct
+integrate_se2 stats, CEM produced sane first-chunk commands (~7.4–7.6 s/plan @ DDIM=3), robot executed the
+stop-and-plan loop. **But it did not converge** — `dist_to_goal` hovered ~44–46 over 22 steps (reach-thresh
+35), and the **Pi-side robot host dropped mid-run** (the SSH tunnel went down with it — all of 5555/5556/9876
+closed at once). So: motion + planning validated on hardware; goal-reaching convergence + tunnel stability
+are **open**. Full telemetry captured to `/workspace/results/mpc_nearfan.rrd` (48 MB, 22 steps; on the
+persistent volume).
+
+**Rerun live telemetry — root-caused and fixed.** Live `--rerun-addr 127.0.0.1:9876` failed every time with
+`re_grpc_client … transport error`, reproducible with a 3-line probe (so not our code). Cause: the
+`-R 9876` reverse tunnel delivers to **Mac:9876, which VS Code Remote-SSH holds** → bytes hit VS Code, not a
+viewer. (Rerun also demands viewer==SDK version, 0.22.1.) Fix: added **`--rerun-web`** to `lekiwi_mpc.py` —
+the pod hosts a version-matched web viewer (`rr.serve_web`, HTTP 9090 + WS 9877); forward those two with
+`-L` and open a browser, no Mac-side rerun at all. Verified the pod serves it (HTTP 200, both ports). Also
+made `rr_init` **tee** telemetry to independent RecordingStreams so live + `.rrd` record run simultaneously
+(rerun 0.22 is single-sink per recording). Runbook updated in [[tailscale-setup]] ("Live rerun telemetry").
+**Next session:** bring tunnel + `--rerun-web` up, redo the run, watch why `dist` plateaus (WM under-drive vs
+goal too far for horizon 3 vs tunnel-drop truncation).

@@ -70,7 +70,7 @@ step-8000 is the checkpoint to carry into Stage 6** (best GT accuracy + translat
 mis-ranked the checkpoints, so judging by rollouts was decisive. See [[training-runs]] (Run 002),
 [[open-questions]], [[experiment-log]].
 
-## ▶️ Stage 6 — Short-Range Planner (CEM/MPC) — **6a DONE (PASS); 6b next**
+## ▶️ Stage 6 — Short-Range Planner (CEM/MPC) — **6a DONE (PASS); 6b in progress (first closed-loop run done — planning works, convergence open)**
 
 The CEM/MPC core already exists (`cem_planner.py` `CEMPlanner`, `diffusion_world_model.rollout`,
 `objective.py`, `preprocessor.py`, `planning_experiment.py` + `_sample_dset_goals`). Stage 6 is **wiring
@@ -109,7 +109,14 @@ it for LeKiwi**: the `envs/` dir has no LeKiwi/dataset env. Plan (eval-grounded,
   dataset-reconstruction fallback is dead on the pod (private-repo 401 + lerobot-v3-can't-read-v2.1) and the
   stats aren't in the ckpt; see [[experiment-log]] 2026-06-05) →
   **6b.4 goal capture ✅ tool built** (`scripts/capture_goal.py`: snapshot the `top` frame → goal.png +
-  256² letterbox preview matching the planner; runs on the Mac, no GPU) → 6b.5 telemetry. **Closed-loop needs a
+  256² letterbox preview matching the planner; runs on the Mac, no GPU) →
+  **6b.3 FIRST live WM closed-loop run ▶️ PARTIAL (2026-06-05):** planning worked on the real robot (correct
+  stats, sane CEM commands, ~7.5 s/plan @ DDIM=3, stop-and-plan loop executed) but **did NOT converge**
+  (`dist_to_goal` ~44–46 over 22 steps, reach-thresh 35) and the **Pi host + SSH tunnel dropped mid-run**;
+  rerun live-viz fixed via **`--rerun-web`** (pod-hosted web viewer, 9090/9877) after the `-R 9876` path
+  collided with VS Code's Mac port — `.rrd` captured. Next: redo with live viz + diagnose the `dist` plateau
+  (WM under-drive vs goal beyond horizon-3 reach vs the truncated run). See [[experiment-log]] 2026-06-05,
+  [[tailscale-setup]] "Live rerun telemetry". → 6b.5 telemetry. **Closed-loop needs a
   pod↔robot bridge** ([[tailscale-setup]]): **recommended = SSH reverse tunnel over RunPod's exposed TCP/SSH
   port** (`ssh -N -R 5555/-R 5556` from the Mac → pod runs `lekiwi_mpc.py --planner wm --ip 127.0.0.1`) — no
   TUN, no new code, reuses the validated pod-as-client path. Tailscale kernel mode is **blocked** (pod has no

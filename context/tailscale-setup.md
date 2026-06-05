@@ -57,7 +57,30 @@ python scripts/lekiwi_mpc.py --planner wm \
   --goal goals/run1/goal.png
 ```
 The integrate_se2 action stats are already wired as `--action-mean/--action-std` defaults (6b.3 pre-wiring),
-so this is turnkey. Optional rerun telemetry can stream to the Mac viewer over the same SSH (`-R 9876:...`).
+so this is turnkey.
+
+### Live rerun telemetry — use the pod-hosted **web viewer**, NOT `-R 9876` (learned 2026-06-05)
+
+The "stream to a native Mac viewer over `-R 9876`" path is a **trap on this setup**: VS Code's Remote-SSH
+auto-forwards/holds **port 9876 on the Mac**, so the reverse-tunnelled bytes land in VS Code's port instead
+of a rerun viewer and the SDK dies with `re_grpc_client … transport error`. (It also requires the Mac viewer
+to be *exactly* the pod's rerun version — 0.22.1 here — or it transport-errors anyway.) Both failure modes
+were hit live.
+
+**Robust fix: `--rerun-web`.** The pod hosts the viewer itself (`rr.serve_web`, version-matched, no Mac
+install) on **HTTP 9090 + WebSocket 9877**. Forward those two with a **local** forward and open a browser —
+exactly the pattern used for the interactive WM driver:
+```bash
+# on the Mac (separate terminal; or just use VS Code's Ports panel for 9090/9877):
+ssh -N -L 9090:localhost:9090 -L 9877:localhost:9877 root@<POD_IP> -p <SSH_TCP_PORT>
+# on the pod, add to the run command:
+#   --rerun-web --rerun-save /workspace/results/<run>.rrd
+# then open http://localhost:9090
+```
+`--rerun-web` and `--rerun-save` **compose** (lekiwi_mpc.py tees telemetry to independent rerun
+RecordingStreams), so you get the live browser view AND a durable `.rrd` in one run. The `.rrd` lives on the
+`/workspace` volume (survives a pod stop) and replays later with any 0.22.1 viewer: `rerun <run>.rrd`.
+`--rerun-addr <host>:9876` still exists for a native viewer, but avoid 9876 while VS Code is attached.
 
 **Requirements / gotchas:**
 - Use the **direct TCP SSH** endpoint (exposed port → 22), not `ssh.runpod.io` (no forwarding there).
@@ -158,7 +181,7 @@ python scripts/lekiwi_mpc.py --planner wm \
   --ckpt /workspace/results/20260603_160326-NanoWM-B-2-F4S10-lekiwi/checkpoints/across_timesteps/epoch=13-step=8000.ckpt \
   --nanowm-src /workspace/NanoNAV/external/nanowm/src \
   --goal goals/run1/goal.png \
-  --rerun --rerun-addr <mac-tailscale-ip>:9876   # optional live telemetry to the Mac viewer
+  --rerun-web --rerun-save /workspace/results/<run>.rrd   # live web viewer (9090/9877) + durable .rrd; see the rerun note above (avoid 9876 / VS Code)
 ```
 Tailscale carries both ZMQ ports (cmd + observations) over the tunnel — no port-forwarding. The integrate_se2
 action stats are already wired as `--action-mean/--action-std` defaults (6b.3 pre-wiring), so this is turnkey.

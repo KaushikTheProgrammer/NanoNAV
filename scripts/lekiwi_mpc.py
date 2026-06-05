@@ -170,7 +170,7 @@ def rr_init(args):
     has a single global sink per recording, so two simultaneous sinks need two streams). `None` entries
     mean "the default recording" (a spawned local viewer).
     """
-    if not (args.rerun or args.rerun_save or args.rerun_addr):
+    if not (args.rerun or args.rerun_save or args.rerun_addr or args.rerun_web):
         return None
     try:
         import rerun as rr
@@ -184,6 +184,17 @@ def rr_init(args):
         rr.save(args.rerun_save, recording=rec)
         streams.append(rec)
         print(f"[rerun] recording -> {args.rerun_save}  (open later on the Mac: `rerun {os.path.basename(args.rerun_save)}`)")
+    # 1b) pod-hosted WEB viewer (robust: no rerun install / version-match on the Mac — just a browser).
+    #     Serves the viewer over HTTP (web_port) + a WebSocket data feed (ws_port). Forward BOTH from the
+    #     Mac (ssh -L web_port + -L ws_port) and open http://127.0.0.1:<web_port>.
+    if args.rerun_web:
+        rec = rr.new_recording(application_id=APP_ID)
+        rr.serve_web(open_browser=False, web_port=args.rerun_web_port, ws_port=args.rerun_ws_port,
+                     recording=rec, server_memory_limit="25%")
+        streams.append(rec)
+        print(f"[rerun] web viewer -> http://127.0.0.1:{args.rerun_web_port}  (ws {args.rerun_ws_port})\n"
+              f"        on the Mac: ssh -N -L {args.rerun_web_port}:localhost:{args.rerun_web_port} "
+              f"-L {args.rerun_ws_port}:localhost:{args.rerun_ws_port} root@<POD_IP> -p <SSH_PORT>, then open the URL")
     # 2) live stream to a viewer over the tunnel (real-time) — composes with the file record above
     if args.rerun_addr:
         rec = rr.new_recording(application_id=APP_ID)
@@ -279,6 +290,10 @@ def main():
     ap.add_argument("--rerun-addr", default=None, help="live viewer addr (gRPC URL over the tunnel); default spawns local viewer")
     ap.add_argument("--rerun-save", default=None, metavar="PATH",
                     help="record telemetry to a .rrd FILE (robust, no live connection); open on the Mac with `rerun PATH`")
+    ap.add_argument("--rerun-web", action="store_true",
+                    help="serve a pod-hosted WEB viewer (no rerun install/version-match on the Mac — just forward the ports and open a browser)")
+    ap.add_argument("--rerun-web-port", type=int, default=9090, help="HTTP port for --rerun-web (default 9090)")
+    ap.add_argument("--rerun-ws-port", type=int, default=9877, help="WebSocket data port for --rerun-web (default 9877)")
     args = ap.parse_args()
 
     if args.planner == "wm" and not args.goal:
