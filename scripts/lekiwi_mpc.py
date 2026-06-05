@@ -146,55 +146,96 @@ def load_goal(path):
 
 # --------------------------------------------------------------------------- rerun telemetry
 
+APP_ID = "nanonav_lekiwi_mpc"
+
+
+def _rr_connect(rr, rec, addr):
+    """Point `rec` at a live viewer (version-tolerant); addr=None uses rerun's default grpc endpoint."""
+    for fn in ("connect_grpc", "connect_tcp", "connect"):
+        if not hasattr(rr, fn):
+            continue
+        try:
+            getattr(rr, fn)(addr, recording=rec) if addr else getattr(rr, fn)(recording=rec)
+            return True
+        except TypeError:                                # older signature: positional addr, no recording=
+            getattr(rr, fn)(addr) if addr else getattr(rr, fn)()
+            return True
+    return False
+
+
 def rr_init(args):
-    if not args.rerun:
+    """
+    Returns (rr, streams) or None. `streams` is a list of independent RecordingStreams we tee EVERY log
+    to — so live (--rerun-addr) and a durable .rrd (--rerun-save) can run AT THE SAME TIME (rerun 0.22
+    has a single global sink per recording, so two simultaneous sinks need two streams). `None` entries
+    mean "the default recording" (a spawned local viewer).
+    """
+    if not (args.rerun or args.rerun_save or args.rerun_addr):
         return None
     try:
         import rerun as rr
-        rr.init("nanonav_lekiwi_mpc", spawn=(args.rerun_addr is None))
-        if args.rerun_addr:                              # connect to a viewer on the Mac over the tailnet/LAN
-            for fn in ("connect_grpc", "connect_tcp", "connect"):   # version-dependent
-                if hasattr(rr, fn):
-                    getattr(rr, fn)(args.rerun_addr)
-                    break
-        return rr
     except Exception as e:
-        print(f"[rerun] disabled ({e}) — continuing without live telemetry.")
+        print(f"[rerun] disabled ({e}) — continuing without telemetry.")
         return None
+    streams = []
+    # 1) durable .rrd record (headless-safe; the always-on capture of EVERYTHING)
+    if args.rerun_save:
+        rec = rr.new_recording(application_id=APP_ID)
+        rr.save(args.rerun_save, recording=rec)
+        streams.append(rec)
+        print(f"[rerun] recording -> {args.rerun_save}  (open later on the Mac: `rerun {os.path.basename(args.rerun_save)}`)")
+    # 2) live stream to a viewer over the tunnel (real-time) — composes with the file record above
+    if args.rerun_addr:
+        rec = rr.new_recording(application_id=APP_ID)
+        ok = _rr_connect(rr, rec, args.rerun_addr)
+        streams.append(rec)
+        print(f"[rerun] live -> {args.rerun_addr}"
+              + ("" if ok else "  [WARN] connect failed — is the viewer up + port forwarded?"))
+    # 3) bare --rerun: spawn a local viewer (needs a display; guarded so a headless run can't crash)
+    if args.rerun:
+        try:
+            rr.init(APP_ID, spawn=True)
+            streams.append(None)                         # None == the default (spawned) recording
+            print("[rerun] spawned local viewer")
+        except Exception as e:
+            print(f"[rerun] local spawn skipped ({e}) — use --rerun-addr for a remote viewer on a headless host")
+    return (rr, streams) if streams else None
 
 
-def _rr_set_time(rr, step):
+def _rr_set_time(rr, step, rec):
     if hasattr(rr, "set_time"):                      # rerun ≥ 0.23
         try:
-            rr.set_time("step", sequence=step); return
+            rr.set_time("step", sequence=step, recording=rec); return
         except TypeError:
             pass
-    rr.set_time_sequence("step", step)               # older rerun
+    rr.set_time_sequence("step", step, recording=rec)   # 0.22
 
 
 def _rr_scalar_cls(rr):
     return getattr(rr, "Scalars", None) or getattr(rr, "Scalar")   # 0.23+ Scalars, else Scalar
 
 
-def rr_log(rr, step, frame, goal, res: PlanResult, executed):
-    if rr is None:
+def rr_log(ctx, step, frame, goal, res: PlanResult, executed):
+    if ctx is None:
         return
-    try:
-        Scalar = _rr_scalar_cls(rr)
-        _rr_set_time(rr, step)
-        rr.log("live", rr.Image(frame))
-        rr.log("goal", rr.Image(goal))
-        rr.log("dist_to_goal", Scalar(res.dist_to_goal))
-        rr.log("cmd/vx", Scalar(executed[0]))
-        rr.log("cmd/theta_deg", Scalar(executed[1]))
-        if res.cem_loss is not None:
-            rr.log("cem_loss", Scalar(res.cem_loss))
-        if res.imagined_rgb is not None:
-            rr.log("imagined", rr.Image(res.imagined_rgb))
-        for i, e in enumerate(res.elite_rgb or []):
-            rr.log(f"elite/{i}", rr.Image(e))
-    except Exception as e:
-        print(f"[rerun] log failed ({e})")
+    rr, streams = ctx
+    Scalar = _rr_scalar_cls(rr)
+    for rec in streams:                                  # tee to every active sink (file and/or live)
+        try:
+            _rr_set_time(rr, step, rec)
+            rr.log("live", rr.Image(frame), recording=rec)
+            rr.log("goal", rr.Image(goal), recording=rec)
+            rr.log("dist_to_goal", Scalar(res.dist_to_goal), recording=rec)
+            rr.log("cmd/vx", Scalar(executed[0]), recording=rec)
+            rr.log("cmd/theta_deg", Scalar(executed[1]), recording=rec)
+            if res.cem_loss is not None:
+                rr.log("cem_loss", Scalar(res.cem_loss), recording=rec)
+            if res.imagined_rgb is not None:
+                rr.log("imagined", rr.Image(res.imagined_rgb), recording=rec)
+            for i, e in enumerate(res.elite_rgb or []):
+                rr.log(f"elite/{i}", rr.Image(e), recording=rec)
+        except Exception as e:
+            print(f"[rerun] log failed ({e})")
 
 
 # --------------------------------------------------------------------------- main loop
@@ -235,7 +276,9 @@ def main():
                     help="integrate_se2 (Δx,Δθ) denorm std for --planner wm (default = the f=10 stats)")
     # telemetry
     ap.add_argument("--rerun", action="store_true")
-    ap.add_argument("--rerun-addr", default=None, help="viewer addr (Mac tailnet IP); default spawns local viewer")
+    ap.add_argument("--rerun-addr", default=None, help="live viewer addr (gRPC URL over the tunnel); default spawns local viewer")
+    ap.add_argument("--rerun-save", default=None, metavar="PATH",
+                    help="record telemetry to a .rrd FILE (robust, no live connection); open on the Mac with `rerun PATH`")
     args = ap.parse_args()
 
     if args.planner == "wm" and not args.goal:
@@ -245,11 +288,12 @@ def main():
         print(f"[goal] {args.goal}  shape={goal.shape}")
 
     planner = make_planner(args)
-    rr = rr_init(args)
+    tel = rr_init(args)
 
-    # connect
-    LeKiwiClient, LeKiwiClientConfig = lk.import_lekiwi()
-    robot = LeKiwiClient(LeKiwiClientConfig(remote_ip=args.ip, id=args.id))
+    # connect — MUST request the `top` camera explicitly; lerobot's client default exposes only
+    # front/wrist and silently drops top (the camera the WM uses). See lk.make_client_config.
+    LeKiwiClient, _ = lk.import_lekiwi()
+    robot = LeKiwiClient(lk.make_client_config(args.ip, args.id, cameras=("top",)))
     base_keys = {}
 
     def _stop(*_):
@@ -294,7 +338,7 @@ def main():
         vx, th = lk.clamp_velocity(res.vx * args.speed_scale, res.theta_deg * args.speed_scale)
 
         # 5. TELEMETRY
-        rr_log(rr, step, frame, goal if goal is not None else frame, res, (vx, th))
+        rr_log(tel, step, frame, goal if goal is not None else frame, res, (vx, th))
         print(f"  step {step:>2}/{args.max_steps}  dist={res.dist_to_goal:7.2f}  plan={plan_ms:6.0f}ms  "
               f"→ x.vel={vx:.3f} theta.vel={th:+.2f}")
 
