@@ -220,17 +220,20 @@ def rr_init(args):
     if viewer_recs:
         try:
             import rerun.blueprint as rrb
-            bp = rrb.Blueprint(
-                rrb.Horizontal(
-                    rrb.Spatial2DView(origin="model/live", name="camera — model view (now)"),
-                    rrb.Spatial2DView(origin="imagined", name="imagined + action (will execute)"),
-                    rrb.Spatial2DView(origin="model/goal", name="goal — model view"),
-                ),
-                auto_views=False, collapse_panels=True,
-            )
+            H = int(getattr(args, "horizon", 3))
+            # FLAT single row (known-good for the web viewer — nested Vertical/row_shares wedged it):
+            # camera (now) | imagined +1 (executes next) | imagined +2..+H (the forward-drift + degradation) | goal.
+            # "imagined" IS the +1 frame (== rollout/h1) and carries the action arrow, so start the rollout fan at +2.
+            views = [rrb.Spatial2DView(origin="model/live", name="camera (now)"),
+                     rrb.Spatial2DView(origin="imagined", name="imagined +1 (executes next)")]
+            for i in range(2, H + 1):
+                views.append(rrb.Spatial2DView(origin=f"rollout/h{i}",
+                                               name=f"imagined +{i}" + (" (CEM target)" if i == H else "")))
+            views.append(rrb.Spatial2DView(origin="model/goal", name="goal"))
+            bp = rrb.Blueprint(rrb.Horizontal(*views), auto_views=False, collapse_panels=True)
             for rec in viewer_recs:
                 rr.send_blueprint(bp, recording=rec) if rec is not None else rr.send_blueprint(bp)
-            print("[rerun] viewer blueprint: live | imagined | goal (3 panels)")
+            print(f"[rerun] viewer blueprint (flat): camera | imagined +1..+{H} | goal")
         except Exception as e:
             print(f"[rerun] blueprint skipped ({e}) — viewer falls back to auto-layout")
     return (rr, streams) if streams else None
@@ -290,10 +293,18 @@ def rr_log(ctx, step, frame, goal, res: PlanResult, executed):
             rr.log("cmd/theta_deg", Scalar(executed[1]), recording=rec)
             if res.cem_loss is not None:
                 rr.log("cem_loss", Scalar(res.cem_loss), recording=rec)
-            if res.imagined_rgb is not None:
-                rr.log("imagined", rr.Image(res.imagined_rgb), recording=rec)
-            if arrow is not None:                          # overlay the action on the imagined frame
+            # PRIMARY imagined panel = the +1-chunk frame the robot ACTUALLY executes toward (matches the
+            # action arrow + comparable to the next live frame). The +H endpoint CEM scores and the full
+            # +1..+H filmstrip (shows the forward-drift + autoregressive degradation) are separate entities.
+            imagined_next = res.imagined_next_rgb if res.imagined_next_rgb is not None else res.imagined_rgb
+            if imagined_next is not None:
+                rr.log("imagined", rr.Image(imagined_next), recording=rec)
+            if arrow is not None:                          # overlay the executed (+1) action on the +1 frame
                 rr.log("imagined/action", arrow, recording=rec)
+            for i, f in enumerate(res.imagined_seq_rgb or []):   # +1..+H filmstrip
+                rr.log(f"rollout/h{i + 1}", rr.Image(f), recording=rec)
+            if res.imagined_rgb is not None:               # +H endpoint (what CEM's objective minimizes)
+                rr.log("imagined_endpoint", rr.Image(res.imagined_rgb), recording=rec)
             for i, e in enumerate(res.elite_rgb or []):
                 rr.log(f"elite/{i}", rr.Image(e), recording=rec)
         except Exception as e:
@@ -310,6 +321,9 @@ def main():
                     help="terminate when dist_to_goal < this (latent-L2; calibrate ~35 from 6a)")
     ap.add_argument("--max-steps", type=int, default=30)
     ap.add_argument("--speed-scale", type=float, default=1.0, help="global scale on executed velocity (<1 to start)")
+    ap.add_argument("--drive-straight", type=float, default=None, metavar="VX_MS",
+                    help="DIAGNOSTIC: ignore CEM and drive a fixed forward vx (m/s), θ=0, each chunk — still "
+                         "encodes/logs WM dist_to_goal. Tests if real straight-line motion reduces latent dist.")
     ap.add_argument("--settle", type=float, default=0.4, help="seconds stationary after STOP before OBSERVE")
     # robot
     ap.add_argument("--ip", default=DEFAULT_PI_IP)
@@ -400,13 +414,23 @@ def main():
         res = planner.plan(frame, goal)
         plan_ms = (time.monotonic() - t0) * 1000.0
 
-        # 4. EXECUTE (clamp + scale) — compute now so telemetry logs what we actually send
-        vx, th = lk.clamp_velocity(res.vx * args.speed_scale, res.theta_deg * args.speed_scale)
+        # 4. EXECUTE (clamp + scale) — compute now so telemetry logs what we actually send.
+        # --drive-straight DIAGNOSTIC: ignore CEM's command, drive a FIXED forward vx (θ=0). Still
+        # encodes/logs dist_to_goal + the imagined viz, so we can tell whether real straight-line motion
+        # toward the goal actually reduces the latent dist (perception/goal OK) vs whether CEM's action
+        # choice was the problem. cmd_src is logged so telemetry is honest about what's being sent.
+        if args.drive_straight is not None:
+            vx, th = lk.clamp_velocity(args.drive_straight, 0.0)
+            cmd_src = "straight"
+        else:
+            vx, th = lk.clamp_velocity(res.vx * args.speed_scale, res.theta_deg * args.speed_scale)
+            cmd_src = "cem"
 
         # 5. TELEMETRY
         rr_log(tel, step, frame, goal if goal is not None else frame, res, (vx, th))
         print(f"  step {step:>2}/{args.max_steps}  dist={res.dist_to_goal:7.2f}  plan={plan_ms:6.0f}ms  "
-              f"→ x.vel={vx:.3f} theta.vel={th:+.2f}")
+              f"[{cmd_src}] → x.vel={vx:.3f} theta.vel={th:+.2f}"
+              + (f"  (cem would: vx={res.vx:.3f} θ={res.theta_deg:+.1f})" if cmd_src == "straight" else ""))
 
         # 6. TERMINATE?
         if res.dist_to_goal < args.reach_thresh:

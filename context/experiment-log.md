@@ -481,3 +481,63 @@ giving CEM a usable gradient (goal beyond H=3 reach and/or under-responsive dyna
 any action (is there a descent direction at all, or is the loss flat?); check if nearfan is simply beyond
 H=3 reach (try a goal 1–2 chunks away, or larger per-chunk action magnitude / step-dx); consider waypoints or
 a longer-horizon retrain. The `--reach-thresh` also needs recalibration to the new [-1,1] `dist` scale.
+
+## 2026-06-08 — Convergence root-caused: flat latent landscape from a wide-angle overhead camera (camera ⊗ objective conditioning)
+
+Settled the closed-loop non-convergence. The world model and CEM are **fine** — the bottleneck is the
+**objective landscape**, and it traces upstream to the **camera**. Headline lesson: **camera FOV and the
+planning objective are a JOINT design choice**, not independent. A wide-angle view is great for
+perception/obstacles but poorly *conditioned* for goal-distance planning.
+
+**Offline probe (the vindication) — `sample/offline_planning_eval.py`, step-12000, 12 scenes × DDIM {20,3}:**
+- **12/12 beat the do-nothing floor**, every motion bucket (translation/pivot/arc/slow).
+- `wm_drop` (do_nothing − gt_ceiling) mean **+15–16** → the WM strongly predicts goal-reaching motion under
+  the *true* actions. Dynamics are not broken — often dramatic (pivots +21 to +34).
+- `reached_ratio` (cem_reached / gt_ceiling) ≈ **1.0** → CEM hits the WM's ceiling; search works.
+- **DDIM=3 ≈ DDIM=20** → the robot's low sampling budget is NOT the bottleneck (rules out the cheap fix).
+- Crucial caveat that explains the live gap: offline goals are always placed **exactly `goal_H=3` chunks
+  ahead** — i.e. already *inside* the basin where the gradient exists. The probe never tested far goals.
+
+**Live runs (step-12000, full speed, nearfan): same non-convergence, both checkpoints + positions.** CEM
+commands **turns when straight is obviously needed** (θ +9…+20 from the start), `dist` flat ~42, robot
+wanders/drifts away. The "place it slightly behind / should just drive straight" setup still failed — the
+start was ~17 chunks (~46 cm) away, i.e. in the **flat region**, not the basin.
+
+**The decisive diagnostic — `--drive-straight` (new flag): bypass CEM, drive a fixed forward vx (θ=0), still
+encode + log WM `dist`.** Drove ~46 cm straight toward nearfan:
+- `dist` **flat 40.5–44.4 for 16 steps** (no trend), then the **operator nudged a slight heading error** and
+  `dist` snapped **44.4 → 32.8 → REACHED (<35)** in one step.
+- So the goal IS reachable and on-distribution (earlier "off-distribution" hypothesis was **wrong**); the
+  latent metric *does* track pose — but only on the **precise approach line**. Off it, flat.
+
+**The root finding — flat-far / narrow-basin objective, and it's in RAW PIXELS:**
+- pixel-L1(frame, goal): step0 **25.8** → step16 **26.1** (≈46 cm of driving, ~unchanged) → step17 **15.7**
+  (after the heading correction). The flatness is present *before the WM* — the camera images themselves
+  barely change under large motion. The WM faithfully encodes inputs that genuinely don't move.
+- Why (all visible in the decoded frames, `results/drive_straight_frames.png`): **wide-angle egocentric
+  overhead camera** → (1) low parallax from distant content (plant/back wall fill the wide FOV; parallax ∝
+  1/depth), (2) the **robot's own body is fixed** in the lower frame (motion-invariant, eats latent capacity),
+  (3) large low-texture floor/wall regions, (4) **barrel distortion** → position-dependent action→pixel map
+  (sharp at center, flat at periphery). Net: a "flat far, narrow basin near" objective. CEM (H=3) outside the
+  basin sees no gradient → flails into turns; blind straight-driving works only by stumbling into the basin,
+  and only if the open-loop heading doesn't drift off the line first.
+
+**Generalization (camera ⊗ objective):** this recurs for **image-distance objectives + distant/low-texture
+scenes + translation goals + short-horizon samplers** — a conditioning trap, well known in image-goal nav /
+visual servoing ("perceptual aliasing", "vanishing gradient far from goal"). It is NOT "wide-angle is bad":
+near-field tasks (manipulation) use fisheye happily (big parallax), rotation is fine even wide-angle, and a
+better-conditioned objective (learned value / relative-pose / feature-matching) extracts a gradient where
+latent-L2 is flat. Change any one factor and the trap loosens.
+
+**Fixes (cheapest first):** (a) **waypoints** — sub-goals ≤2–3 chunks apart so every plan starts inside the
+basin (zero retrain; predicted to work); (b) **undistort + center-crop** the view to trade FOV for motion
+sensitivity (likely needs a VAE/WM retrain on the cropped view); (c) **mask the robot body**; (d) **denser
+near-field texture**; (e) a **denser/learned objective** to widen the basin. Decisive test for the camera's
+role: retrain (or re-encode) on a distortion-corrected center crop and re-measure the latent-dist-vs-
+displacement curve — if it steepens, the camera was a primary cause.
+
+**Diagnostics added this session (committed):** live per-scene `do_nothing/gt_ceiling/cem_reached` print in
+`offline_planning_eval.py`; `--drive-straight VX` open-loop flag in `lekiwi_mpc.py`; imagined-rollout viz fix
+— the `imagined` panel now shows the **+1 chunk the robot actually executes** (was wrongly the +H endpoint,
+the most autoregressively-degraded frame) plus a `rollout/h1..hH` filmstrip; flat single-row rerun blueprint
+(the nested 2-row layout wedged the web viewer). See [[lekiwi-wm-camera-objective-conditioning]].

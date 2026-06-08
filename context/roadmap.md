@@ -120,7 +120,19 @@ it for LeKiwi**: the `envs/` dir has no LeKiwi/dataset env. Plan (eval-grounded,
   θ oscillating** — range fix was necessary but NOT sufficient. Convergence now points at the WM not giving
   CEM a usable gradient (goal beyond H=3 reach and/or under-responsive dynamics), not preprocessing. Live viz
   also moved to the **native viewer on clean port 9999** (`--rerun-addr 127.0.0.1:9999` + `rerun --port 9999`
-  + `-R 9999`), with `scripts/rerun_web_smoke.py` to test telemetry without the robot. Next: probe CEM's
+  + `-R 9999`), with `scripts/rerun_web_smoke.py` to test telemetry without the robot.
+  **2026-06-08 — ROOT-CAUSED (camera ⊗ objective conditioning).** WM + CEM are *fine* (offline probe
+  `offline_planning_eval.py` step-12000: **12/12 beat floor**, wm_drop +15–16, reached_ratio ≈1.0, DDIM=3≈20)
+  — but offline goals sit `goal_H=3` chunks away, *inside* the gradient basin. The live failure is a **flat
+  latent landscape**: a new `--drive-straight` diagnostic drove ~46 cm straight at nearfan with `dist` flat
+  ~42 the whole way (and **flat in RAW PIXELS too**: pixel-L1 25.8→26.1), then a tiny operator heading nudge
+  snapped it 44→32.8→REACHED. Cause = the **wide-angle egocentric overhead camera**: low parallax (distant
+  content), the robot's own body fixed in-frame, low-texture floor/wall, barrel distortion → "flat far, narrow
+  basin near" objective that CEM (H=3) can't descend from outside the basin. NOT off-distribution (goal IS
+  reachable), NOT broken dynamics, NOT DDIM. Generalizes to image-distance objectives + distant scenes +
+  translation goals. **Fixes:** waypoints (≤2–3 chunks, no retrain) → undistort+center-crop view (retrain) →
+  mask robot body → denser/learned objective. See [[experiment-log]] 2026-06-08,
+  [[lekiwi-wm-camera-objective-conditioning]]. Earlier next-steps (still valid for the basin/objective work): probe CEM's
   imagined-`dist` for any descent direction; try a 1–2-chunk goal / larger per-chunk action; recalibrate
   `--reach-thresh` to the new [-1,1] scale; consider waypoints or a longer-horizon retrain. See
   [[experiment-log]] 2026-06-06, [[tailscale-setup]] "Live rerun telemetry". → 6b.5 telemetry. **Closed-loop needs a
