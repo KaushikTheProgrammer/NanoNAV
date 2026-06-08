@@ -178,6 +178,7 @@ def rr_init(args):
         print(f"[rerun] disabled ({e}) — continuing without telemetry.")
         return None
     streams = []
+    viewer_recs = []                                     # live viewers (web/addr/spawn) get the simplified blueprint
     # 1) durable .rrd record (headless-safe; the always-on capture of EVERYTHING)
     if args.rerun_save:
         rec = rr.new_recording(application_id=APP_ID)
@@ -192,6 +193,7 @@ def rr_init(args):
         rr.serve_web(open_browser=False, web_port=args.rerun_web_port, ws_port=args.rerun_ws_port,
                      recording=rec, server_memory_limit="25%")
         streams.append(rec)
+        viewer_recs.append(rec)
         print(f"[rerun] web viewer -> http://127.0.0.1:{args.rerun_web_port}  (ws {args.rerun_ws_port})\n"
               f"        on the Mac: ssh -N -L {args.rerun_web_port}:localhost:{args.rerun_web_port} "
               f"-L {args.rerun_ws_port}:localhost:{args.rerun_ws_port} root@<POD_IP> -p <SSH_PORT>, then open the URL")
@@ -200,6 +202,7 @@ def rr_init(args):
         rec = rr.new_recording(application_id=APP_ID)
         ok = _rr_connect(rr, rec, args.rerun_addr)
         streams.append(rec)
+        viewer_recs.append(rec)
         print(f"[rerun] live -> {args.rerun_addr}"
               + ("" if ok else "  [WARN] connect failed — is the viewer up + port forwarded?"))
     # 3) bare --rerun: spawn a local viewer (needs a display; guarded so a headless run can't crash)
@@ -207,9 +210,29 @@ def rr_init(args):
         try:
             rr.init(APP_ID, spawn=True)
             streams.append(None)                         # None == the default (spawned) recording
+            viewer_recs.append(None)
             print("[rerun] spawned local viewer")
         except Exception as e:
             print(f"[rerun] local spawn skipped ({e}) — use --rerun-addr for a remote viewer on a headless host")
+    # Simplified live layout: only the camera frame, the imagined rollout, and the goal — side by side.
+    # The .rrd still records EVERYTHING (dist/cmd/cem_loss/elite) for diagnosis; this only declutters the
+    # live viewer. auto_views=False suppresses auto-panels for the unlisted (scalar/elite) entities.
+    if viewer_recs:
+        try:
+            import rerun.blueprint as rrb
+            bp = rrb.Blueprint(
+                rrb.Horizontal(
+                    rrb.Spatial2DView(origin="model/live", name="camera — model view (now)"),
+                    rrb.Spatial2DView(origin="imagined", name="imagined + action (will execute)"),
+                    rrb.Spatial2DView(origin="model/goal", name="goal — model view"),
+                ),
+                auto_views=False, collapse_panels=True,
+            )
+            for rec in viewer_recs:
+                rr.send_blueprint(bp, recording=rec) if rec is not None else rr.send_blueprint(bp)
+            print("[rerun] viewer blueprint: live | imagined | goal (3 panels)")
+        except Exception as e:
+            print(f"[rerun] blueprint skipped ({e}) — viewer falls back to auto-layout")
     return (rr, streams) if streams else None
 
 
@@ -226,16 +249,42 @@ def _rr_scalar_cls(rr):
     return getattr(rr, "Scalars", None) or getattr(rr, "Scalar")   # 0.23+ Scalars, else Scalar
 
 
+def _action_arrow(rr, vx, theta_deg, img_hw=256):
+    """A 2D arrow (image-pixel space) for the executed command, to overlay on the imagined frame:
+    length ∝ forward speed, tilt = turn rate (+θ = CCW/left → tilts left), origin at bottom-center.
+    Labeled with the exact numbers so the glyph stays honest. Returns an Arrows2D archetype."""
+    import math
+    bx, by = img_hw / 2.0, img_hw - 18.0
+    mag = min(max(abs(vx) * 1500.0, 18.0), 110.0)         # m/s -> px (clamped so it's always visible)
+    fwd = mag if vx >= 0 else -mag                         # reverse -> point down
+    thr = math.radians(theta_deg)
+    dx = -fwd * math.sin(thr)                              # +θ (CCW/left) -> -x (left in image)
+    dy = -fwd * math.cos(thr)                              # forward -> -y (up in image)
+    return rr.Arrows2D(vectors=[[dx, dy]], origins=[[bx, by]],
+                       labels=[f"vx={vx:+.3f} m/s  θ={theta_deg:+.1f}°/s"],
+                       colors=[[255, 230, 0]], radii=[2.0])
+
+
 def rr_log(ctx, step, frame, goal, res: PlanResult, executed):
     if ctx is None:
         return
     rr, streams = ctx
     Scalar = _rr_scalar_cls(rr)
+    arrow = None
+    try:
+        arrow = _action_arrow(rr, executed[0], executed[1])
+    except Exception as e:
+        print(f"[rerun] arrow build failed ({e})")
     for rec in streams:                                  # tee to every active sink (file and/or live)
         try:
             _rr_set_time(rr, step, rec)
             rr.log("live", rr.Image(frame), recording=rec)
             rr.log("goal", rr.Image(goal), recording=rec)
+            # what the WM actually encodes (letterboxed 256² + black bars) — the viewer's primary panels
+            if res.model_live_rgb is not None:
+                rr.log("model/live", rr.Image(res.model_live_rgb), recording=rec)
+            if res.model_goal_rgb is not None:
+                rr.log("model/goal", rr.Image(res.model_goal_rgb), recording=rec)
             rr.log("dist_to_goal", Scalar(res.dist_to_goal), recording=rec)
             rr.log("cmd/vx", Scalar(executed[0]), recording=rec)
             rr.log("cmd/theta_deg", Scalar(executed[1]), recording=rec)
@@ -243,6 +292,8 @@ def rr_log(ctx, step, frame, goal, res: PlanResult, executed):
                 rr.log("cem_loss", Scalar(res.cem_loss), recording=rec)
             if res.imagined_rgb is not None:
                 rr.log("imagined", rr.Image(res.imagined_rgb), recording=rec)
+            if arrow is not None:                          # overlay the action on the imagined frame
+                rr.log("imagined/action", arrow, recording=rec)
             for i, e in enumerate(res.elite_rgb or []):
                 rr.log(f"elite/{i}", rr.Image(e), recording=rec)
         except Exception as e:
