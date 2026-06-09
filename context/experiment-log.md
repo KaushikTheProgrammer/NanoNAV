@@ -621,3 +621,54 @@ waypoints" path). `--reach-thresh` recalibrated: with a correct goal the basin f
 **Tooling added + committed this session:** `measure_dist_sweep.py` (+`--yaw-sweep`), `--drive-straight`,
 imagined `+1`/filmstrip viz, flat single-row blueprint, offline-eval live-metrics print. Sweeps:
 `/workspace/results/{dist_sweep,yaw_sweep,yaw_sweep2}/curve.png`.
+
+## 2026-06-09 — Far-goal still stalls (H=5, var-scale, vx-max all no help); ⭐ KEY NEXT STEP = replace the raw latent-L2 objective with a learned/temporal distance
+
+Spent the session probing the **far-start (outside-catchment) plateau** and ruling out the cheap knobs.
+None of them help when the start is on the plateau, because **the objective itself has no gradient there** —
+that's now the clearly-identified blocker, and the fix is a better *distance metric*, not more search.
+
+**⭐ KEY NEXT STEP (flagged by operator) — the convergence objective is the limiter.** Convergence is
+measured as **raw flattened latent-L2** between the current top-frame latent and the goal-frame latent
+(`lekiwi_engine.plan`: `dist_to_goal = ‖z0 − zg‖`, `_flat_l2 = torch.norm((a-b).reshape(-1))`; REACHED when
+`< --reach-thresh`). This is correct *as a convergence readout* and well-conditioned **near** the goal (sweeps:
+basin floor ~16, SNR ~17–97), but **flat far out** — every spatial latent cell is weighted equally and most
+encode "generic floor/wall," so two far-but-different poses look ~equidistant. **Replace raw latent-L2 with a
+denser / learned objective — a self-supervised temporal-distance / quasimetric (frames k apart → distance ≈ k,
+trainable on the data we already have)** — to put gradient on the plateau. This *also* enables
+**model-imagined subgoals** (imagine reachable futures → score by learned distance → hop → repeat), i.e. the
+"plan fully in the WM, no manual waypoints" path. This is the single highest-leverage next step for far goals.
+
+**Knobs tested today (all NO help on the plateau):**
+- **`--horizon 5`** (vs 3): only changes *planning*, not execution (see below); CEM looks 5 chunks ahead but
+  +4/+5 are autoregressive past the train window (H_train=3). Far start 44→~49, drifted away. Lookahead into a
+  *flat* region creates no gradient for the first step. (~14.5 s/plan, ~2× H=3.)
+- **`--var-scale 2.0`**: visibly stronger turn sampling but same plateau stall → sampling width isn't the limit
+  (the flat loss doesn't select the bigger turns). [[lekiwi-wm-camera-objective-conditioning]].
+- **`--vx-max 0.12`** (0.04 m/chunk vs 0.033): CEM didn't even use the bigger cap on the plateau (no gradient
+  to exploit it). Helps only *inside* the catchment.
+
+**Execution semantics confirmed (execute-one, replan):** each plan executes **only chunk #1** of the H-chunk
+plan (`lekiwi_engine.plan` returns `raw[0]`; `lekiwi_mpc` streams `(vx,θ)` for exactly one `CHUNK_DT`=0.333 s,
+then STOP→OBSERVE→re-PLAN). Chunks 2…H are **imagined-only** (so CEM can score the +H endpoint, `mode="last"`)
+and discarded. So a longer planning horizon ≠ the robot committing further; it still moves ~3 cm/step.
+
+**Camera USB-enumeration swap (real, intermittent) + durable fix.** After ~4 Pi-host crashes, the `top` camera
+*name* re-mapped to the front-facing device (verified: `front` key held the overhead/robot-body view the WM
+trains on; `top` held a low floor view). This fed the WM an **out-of-distribution camera** and invalidated the
+mid-session `nearchair1`/`vx-max` runs. A Pi restart swapped it back (non-deterministic). **Durable fix: a
+udev rule on the Pi pinning each camera to a stable `/dev/lekiwi_top` by USB serial**, then point the host at
+it. Always re-probe (`results/cam_probe*/`) after a host restart before trusting a run.
+
+**Rollout audit (no bug; sequential scheduling explains the "+1 looks poor" viz).** `scheduling_mode:
+sequential` (self-forcing): frames generate serially — **+1 = f(z0, a0)** conditioned *directly* on the start
+latent, then +2 = f(+1, a1), +3 = f(+2, a2). So **+1 is the only frame tied straight to z0**: if the live z0 is
+off-distribution, +1 inherits it and looks rough while +2/+3 regress toward the model's prior and look cleaner.
+The interactive driver seeds from **val frames** (in-distribution) → looks clean; MPC seeds from **live**
+frames → +1 reveals the live-distribution gap. Decode indexing verified correct. **CEM is NOT corrupted** —
+its objective scores the +H endpoint, not +1. (Implication: live-frame ↔ training-distribution gap is worth
+closing — `_preprocess` parity check or fine-tune on live frames.)
+
+**New tooling this session (uncommitted unless noted):** `--var-scale` (committed), `--vx-max` (uncommitted,
+needs a clean robot run), `--max-steps` default 30→**100**, interactive-driver **start-frame switcher**
+(prev/next/random/jump over the 4405 val slices; committed, submodule 8f78848).

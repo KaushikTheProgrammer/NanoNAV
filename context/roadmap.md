@@ -155,6 +155,18 @@ it for LeKiwi**: the `envs/` dir has no LeKiwi/dataset env. Plan (eval-grounded,
   blocker → **learned temporal-distance metric + model-imagined subgoals** (the "plan fully in WM, no manual
   waypoints" path). `--reach-thresh` 25–30 sensible (basin floor ~16, plateau ~45). See [[experiment-log]]
   2026-06-08 (resolution). 6b.3 closed-loop: **working** ✅ (within catchment).
+  **2026-06-09 — ⭐ KEY NEXT STEP: replace the raw latent-L2 objective with a learned/temporal distance.**
+  Far-start (outside-catchment) goals still stall, and `--horizon 5` / `--var-scale 2` / `--vx-max 0.12` all
+  fail to help — because the **objective has no gradient on the plateau** (raw flattened `‖z0−zg‖` weights all
+  latent cells equally; most encode generic floor/wall → far poses look ~equidistant). Fix = a self-supervised
+  **temporal-distance / quasimetric** (frames k apart → dist ≈ k, trainable on existing data) to put gradient
+  on the plateau → also enables **model-imagined subgoals** (no manual waypoints). Also surfaced: exec is
+  **execute-one-replan** (only chunk #1 runs/plan; horizon only changes planning, robot still moves ~3 cm/step);
+  a **USB camera-enumeration swap** on Pi-host restarts (durable fix = udev rule pinning `top` by serial; always
+  re-probe after a restart); rollout "+1 looks poor" = `scheduling_mode:sequential` (+1 tied directly to z0) →
+  signals a live↔training distribution gap, not a bug (CEM scores the +H endpoint, uncorrupted). Tooling:
+  `--var-scale`, `--vx-max`, `--max-steps` default→100, interactive-driver start-frame switcher. See
+  [[experiment-log]] 2026-06-09.
   Earlier next-steps (still valid for the off-axis/objective work): probe CEM's
   imagined-`dist` for any descent direction; try a 1–2-chunk goal / larger per-chunk action; recalibrate
   `--reach-thresh` to the new [-1,1] scale; consider waypoints or a longer-horizon retrain. See
