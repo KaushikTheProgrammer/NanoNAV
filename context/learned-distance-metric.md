@@ -78,7 +78,7 @@ pessimism** for a planner, rare in a small crisscrossed room, and shrinks with t
 ```
 frozen SD-VAE → z [4,32,32]
    │  φ : small CNN over the [4,32,32] grid → flatten → MLP → e ∈ ℝ²⁵⁶   (trainable)
-   │  IQE quasimetric head → d(z_a,z_b) = IQE(φ(z_a), φ(z_b))            (asymmetric, Δ-ineq by構造)
+   │  IQE quasimetric head → d(z_a,z_b) = IQE(φ(z_a), φ(z_b))   (asymmetric, triangle-ineq by construction)
 ```
 Train an **ensemble (2–4 heads)**; use the **pessimistic (max)** distance for any edge/subgoal admission
 — guards against single-head "wormhole" false shortcuts. VAE stays **frozen**; only φ + head train
@@ -164,6 +164,47 @@ inside CEM's ~96 rollouts.
 ViNG-style bucketed classifier vs raw-L2** on this before touching the robot. (Ties into the broader
 "rigorous eval" thread — this is the absolute, physically-grounded metric the WM-relative 6a
 `reached_ratio` lacked.)
+
+## Pitfalls / risks & mitigations
+
+The quasimetric trades **"flat but honest" (raw L2) for "sharp but possibly confidently wrong."** Good for
+planning *only if* the "confidently wrong" failure is actively policed. Split into QRL-specific risks and
+ones shared by any learned distance but acute here.
+
+**QRL-specific:**
+1. **Wormholes — the triangle inequality amplifies errors globally.** QRL recovers *shortest-path* cost-to-go;
+   if φ **aliases two distinct places** to nearby embeddings (likely — our latents are appearance-heavy in a
+   low-texture room, the *same* condition that flattened L2), the metric routes everything through the
+   spurious short link and **collapses distances across the whole graph**. Raw L2's aliasing errors are
+   *local*; a quasimetric's **propagate**. Worst in under-covered regions (nothing pushes the aliased pair
+   apart). *Mitigate:* ensemble + pessimistic-max; **ensemble disagreement as a wormhole detector**; the
+   topological graph (below) filters implausible long-range edges.
+2. **Min-max / dual-ascent training is fragile + hyperparameters won't transfer.** The constrained adversarial
+   objective can collapse (`d→0`), inflate, or oscillate; published defaults are tuned for D4RL-style
+   benchmarks, not SD-VAE-latent nav → expect to retune ε / λ-schedule / push-apart transform.
+3. **Asymmetry can be mis-estimated.** Learning good directionality needs data exhibiting it; our
+   near-holonomic base + exploratory teleop may yield spurious asymmetry from **coverage imbalance**
+   (more-driven directions look cheaper). Adds expressiveness *and* a way to be subtly wrong.
+4. **IQE inductive bias** — distance is max-over-components ⇒ bottleneck-dominated; underfits metrics not of
+   that form. MRN is the fallback head.
+
+**Shared but acute here:**
+5. **Bounded by WM rollout fidelity — NOT a fix for hallucination.** The cost scores imagined `ẑ`; a perfect
+   metric on a hallucinated `ẑ` is still garbage. Gated by the live-distribution gap, doesn't solve it.
+6. **Reachability ≠ controllability.** `d*` assumes an *optimal* controller + *uniform* step cost; ours
+   **under-drives**, has a rotation deadband, near-bang-bang speed, no strafe, and a chunk is ~0–3 cm. So the
+   metric can hand CEM a gradient the controller can't follow, and "1 step" of metric ≠ 1 step of progress —
+   it's *time-steps under the data's behavior*, not geometric distance (inherits the stop-heavy teleop).
+7. **Coverage-bounded** — only knows the explored graph (50 episodes); unexplored links → safely over-far but
+   un-routable. Same wall as the retrain.
+8. **Verification gap** — no global pose ground truth (that's *why* it's self-supervised), so the metric can't
+   be certified globally; the `measure_dist_sweep` curves are **local spot-checks** and won't catch a wormhole
+   between unsampled regions until it causes a bad plan.
+
+**Design-against-from-day-one:** wormholes (#1) and reachability≠controllability (#6) — the two with the
+sharpest teeth (the metric amplifies the aliasing our latents are prone to; and we *already observe* the
+under-drive, so an optimal-control metric over-promises). All of the above are **testable offline on the
+sweeps + ensemble disagreement before the robot**.
 
 ## Subgoal layer (for far goals — after the metric)
 
