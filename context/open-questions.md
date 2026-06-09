@@ -125,12 +125,15 @@ hallucinated, both `dist_to_goal` and what CEM optimizes are garbage → the con
 **So fix this BEFORE the learned-distance objective below.** Evidence it's distribution, not a code bug: the
 interactive driver seeds from **val tensors** (in-distribution) and looks clean; MPC runs **live frames through
 `_preprocess`** and hallucinates; and `nearfan2` converged only because its start was a *well-covered* pose.
-**Investigate (cheapest first):** (1) **`_preprocess` ↔ dataset-pipeline byte parity** — letterbox pad value,
-interpolation mode, channel order, normalize range, JPEG/AV1-vs-raw (the suspect path; val tensors bypass it);
-(2) capture-condition match (exposure/WB lock, avoid lossy AV1 — see "Forward-speed coverage" / camera notes);
-(3) if parity is exact → **data coverage** (more under-visited poses, or light **fine-tune on live frames**).
-See [[experiment-log]] 2026-06-09 (later). *(The learned-distance objective under "Scoring function
-alternatives" is #2 — it can't help until `z0`/rollouts are faithful.)*
+**REFINED (same session): it's OOD data coverage, NOT a preprocess bug.** Seeding the interactive driver from
+the nearhamper **goal image** (a clean settled capture, loaded via the SAME path as the `nearfan2`/`nearchair`
+goals that converged) **also hallucinates** → rules out `_preprocess`/format parity and motion-blur; the
+nearhamper view is a **genuinely under-covered region**. **Fix = recollect more data + train further** (the WM
+only "mapped" densely-visited poses). `_preprocess` byte-parity is a quick sanity check but DOWNGRADED. **Eval
+guidance until retrained: use goals in well-covered regions** (`nearfan2`-style); avoid OOD goals like
+`nearhamper`. See [[experiment-log]] 2026-06-09 (later). *(The learned-distance objective under "Scoring
+function alternatives" is #2 — it can't help until `z0`/rollouts are faithful, which needs the data/training
+fix here.)*
 
 ### Waypoint graph construction details
 - Spatial sampling interval (~30cm proposed — tune based on CEM scoring range)

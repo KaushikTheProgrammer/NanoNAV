@@ -725,3 +725,13 @@ directly* and is clean; MPC runs live frames through `_preprocess` → that's th
 condition match (exposure/WB lock, avoid lossy AV1 — already flagged in [[open-questions]]). (3) if parity is
 exact → **data coverage**: more coverage of under-visited poses, or a light **fine-tune on live frames**.
 See montages + `[[open-questions]]` "Live-frame distribution gap".
+
+**RESOLUTION (same session) — it's OOD coverage, not a preprocess bug; fix = recollect + retrain.** Seeded the
+**interactive driver from the nearhamper goal image** (a clean, settled live capture, loaded via the SAME
+`load_image_rgb`+`_to_model` path as the `nearfan2`/`nearchair` goals that *converged*) → **it hallucinates
+there too.** Since other goal images through the identical path work, this **rules out `_preprocess`/format
+parity and motion-blur** and confirms the nearhamper view is a **genuinely under-covered region** of the room
+(the WM "mapped" only densely-visited poses). So: **`_preprocess` parity check is DOWNGRADED**; the real fix is
+**more data coverage + further training** (operator's plan). **Eval guidance until then: use goals in
+well-covered regions** (e.g. `nearfan2`-style, near where the bot drove during collection); avoid OOD goals like
+`nearhamper`. Operator is recollecting data + training further off-pod.
