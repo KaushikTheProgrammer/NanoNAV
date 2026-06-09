@@ -115,6 +115,23 @@ mis-calibrated RMS gate is moot. See [[planning]] "6a — RESULTS", [[experiment
 
 ## Planning Phase
 
+### 🚨 Live-frame distribution gap — THE #1 GATING BLOCKER (2026-06-09, on-robot)
+**The WM hallucinates when rolled out from live camera frames.** With the bot in front of a goal object,
+the imagined rollout shows a *completely different side of the room* (montages:
+`context/figures/live-distribution-gap_*.png`). The live `camera` pixels are correct, but `z0 = encode(live)`
+lands **off-distribution**, so the sequential rollout degrades (`+1` haze) then **regresses to a familiar
+training scene elsewhere**. This is **upstream of the scoring objective**: if `z0` + imagined futures are
+hallucinated, both `dist_to_goal` and what CEM optimizes are garbage → the confidently-wrong commands follow.
+**So fix this BEFORE the learned-distance objective below.** Evidence it's distribution, not a code bug: the
+interactive driver seeds from **val tensors** (in-distribution) and looks clean; MPC runs **live frames through
+`_preprocess`** and hallucinates; and `nearfan2` converged only because its start was a *well-covered* pose.
+**Investigate (cheapest first):** (1) **`_preprocess` ↔ dataset-pipeline byte parity** — letterbox pad value,
+interpolation mode, channel order, normalize range, JPEG/AV1-vs-raw (the suspect path; val tensors bypass it);
+(2) capture-condition match (exposure/WB lock, avoid lossy AV1 — see "Forward-speed coverage" / camera notes);
+(3) if parity is exact → **data coverage** (more under-visited poses, or light **fine-tune on live frames**).
+See [[experiment-log]] 2026-06-09 (later). *(The learned-distance objective under "Scoring function
+alternatives" is #2 — it can't help until `z0`/rollouts are faithful.)*
+
 ### Waypoint graph construction details
 - Spatial sampling interval (~30cm proposed — tune based on CEM scoring range)
 - DepthAnything3 reconstruction quality on overhead camera frames

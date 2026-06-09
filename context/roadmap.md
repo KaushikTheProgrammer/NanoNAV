@@ -155,7 +155,17 @@ it for LeKiwi**: the `envs/` dir has no LeKiwi/dataset env. Plan (eval-grounded,
   blocker → **learned temporal-distance metric + model-imagined subgoals** (the "plan fully in WM, no manual
   waypoints" path). `--reach-thresh` 25–30 sensible (basin floor ~16, plateau ~45). See [[experiment-log]]
   2026-06-08 (resolution). 6b.3 closed-loop: **working** ✅ (within catchment).
-  **2026-06-09 — ⭐ KEY NEXT STEP: replace the raw latent-L2 objective with a learned/temporal distance.**
+  **2026-06-09 (later) — 🚨 NEW #1 GATING BLOCKER: the WM HALLUCINATES from live frames (off-distribution z0),
+  upstream of the objective.** A `nearhamper1` eval: bot in front of the hamper (correct in the live `camera`
+  panel) but the imagined rollout shows a **different side of the room** (frames pulled from
+  `mpc_nearhamper1_pos2.rrd`; montages `context/figures/live-distribution-gap_*.png`). Sequential rollout:
+  `+1=f(z0,a0)` haze → `+2/+3` snap to a familiar training scene. Failure is **live→latent→WM**, not camera/
+  decode. Interactive driver looks clean only because it seeds **val tensors**; MPC runs **live frames through
+  `_preprocess`**. Uneven by coverage (nearfan2 converged = well-covered pose). **Fix this BEFORE the objective**
+  — a learned distance can't help on a hallucinated z0. Investigate: (1) `_preprocess`↔dataset byte parity, (2)
+  exposure/WB/compression match, (3) coverage/light fine-tune on live frames. See [[experiment-log]] 2026-06-09
+  (later), [[open-questions]] "Live-frame distribution gap".
+  **2026-06-09 — ⭐ KEY NEXT STEP (#2, after the gap above): replace the raw latent-L2 objective with a learned/temporal distance.**
   Far-start (outside-catchment) goals still stall, and `--horizon 5` / `--var-scale 2` / `--vx-max 0.12` all
   fail to help — because the **objective has no gradient on the plateau** (raw flattened `‖z0−zg‖` weights all
   latent cells equally; most encode generic floor/wall → far poses look ~equidistant). Fix = a self-supervised

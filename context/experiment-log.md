@@ -690,3 +690,38 @@ train a small head to predict reachability-distance; swap `dist_to_goal = ‖z0�
 both the readout and CEM's objective. Trains on data we already have (no new collection); also unlocks
 **model-imagined subgoals** ("plan fully in the WM, no manual waypoints"). See [[open-questions]] "Scoring
 function alternatives". Operator is moving to off-pod planning from here.
+
+## 2026-06-09 (later) — 🚨 NEW TOP BLOCKER: the WM HALLUCINATES from live frames (off-distribution z0) — upstream of the objective
+
+A `nearhamper1` eval surfaced a more serious problem than the objective. With the bot **in front of the
+hamper** (hamper clearly in the live `camera` panel), the **imagined rollout shows a completely DIFFERENT side
+of the room** (a chair + the robot's own gripper from elsewhere), not the hamper. Pulled the actual frames from
+`mpc_nearhamper1_pos2.rrd` (montages: `context/figures/live-distribution-gap_*.png`,
+`results/hamper_debug/`): step 0 `imagined +1` is a **washed-out haze**; by `+2/+3` it **snaps to a different
+training-common scene**. The `camera` panel (preprocessed live pixels) is correct — so the failure is in
+**live-frame → latent → WM prediction**, not the camera or decode.
+
+**Mechanism (sequential scheduling makes it visible):** `+1 = f(z0, a0)` is conditioned *directly* on the live
+latent. When `z0` is off-distribution the model can't stay anchored — `+1` degrades, then the autoregressive
+`+2/+3` **regress to a familiar training mode elsewhere in the room.** So the imagined "future" is not a
+prediction of the live scene at all; it's a hallucination. The **interactive driver looked clean only because
+it seeds from VAL frames (in-distribution)**; live frames trigger this. (Test in progress: seeding the
+interactive driver from the live **goal image** to see if live-captured frames hallucinate there too.)
+
+**Why this is THE top blocker (above the learned-distance objective):** if `z0` and the imagined rollouts are
+garbage, then BOTH `dist_to_goal` and what CEM optimizes are garbage → the confidently-wrong commands (turning
+away, rotating to the wrong side) all follow. A better distance metric can't help if it's measuring a
+hallucinated latent. **Order: close the live↔training distribution gap FIRST, then the learned objective.**
+
+**It's uneven by pose/coverage — reconciles the whole session:** `nearfan2` converged (REACHED ×2) because its
+start was near a **well-covered** training pose → in-distribution `z0`; `nearhamper` from a far/off-axis/
+under-covered pose → off-distribution `z0` → hallucination. So the WM "mapped the room" only where training
+data was dense.
+
+**Off-pod investigation order:** (1) **`_preprocess` ↔ dataset-pipeline byte parity** (cheapest, likely
+culprit) — letterbox pad value, interpolation mode, color channel order, normalize range, JPEG/AV1-vs-raw; any
+divergence puts `z0` off the manifold despite correct-looking pixels. The interactive driver uses *val tensors
+directly* and is clean; MPC runs live frames through `_preprocess` → that's the suspect path. (2) capture-
+condition match (exposure/WB lock, avoid lossy AV1 — already flagged in [[open-questions]]). (3) if parity is
+exact → **data coverage**: more coverage of under-visited poses, or a light **fine-tune on live frames**.
+See montages + `[[open-questions]]` "Live-frame distribution gap".
