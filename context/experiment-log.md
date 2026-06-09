@@ -735,3 +735,47 @@ parity and motion-blur** and confirms the nearhamper view is a **genuinely under
 **more data coverage + further training** (operator's plan). **Eval guidance until then: use goals in
 well-covered regions** (e.g. `nearfan2`-style, near where the bot drove during collection); avoid OOD goals like
 `nearhamper`. Operator is recollecting data + training further off-pod.
+
+## 2026-06-09 (design session) — Learned distance objective (quasimetric) design + build order settled
+
+Off-pod design session converging the **#2 next step** (after the live-frame distribution fix): replace the
+raw SD-VAE latent-L2 planning objective with a **learned quasimetric distance**. Full design captured in
+[[learned-distance-metric]]; this is the chronology pointer.
+
+- **What it learns:** "≈ chunks-to-drive" (drivable shortest-path / optimal cost-to-go), NOT appearance —
+  keys on *drivability* (two spots near on open floor = near; near across a wall = far), the thing raw L2
+  can't express and the reason it's flat far-out.
+- **Approach = Quasimetric RL (QRL, arXiv:2304.01203) + IQE head (arXiv:2211.15120).** Objective = two
+  opposing forces + structure: local cap (adjacent chunks `d≤1`, the only ground truth, self-supervised
+  from the video timeline) + **push random pairs apart** (anti-collapse) + IQE triangle-inequality
+  *by construction*. Maximizing against the local caps makes the metric structure compute shortest-path
+  (beads-and-strings). Cross-trajectory pairs are handled by stitching through shared places — answered the
+  "physically-nearby-but-different-trajectory" worry: the Δ-inequality caps them at the true short distance
+  if a connecting drive exists; over-estimates (safe pessimism) only on genuine coverage gaps.
+- **Architecture:** frozen SD-VAE → **CNN φ** (encoder, *not* itself a quasimetric) → **IQE head** (supplies
+  the geometry), trained jointly; single shared encoder, asymmetry from the head. = QRL's image recipe with
+  φ reading the `[4,32,32]` latent instead of pixels. SD-VAE-specific handling: CNN-not-MLP (disentangle
+  pose from appearance on the spatial grid), normalize to the WM convention, stay in WM latent space
+  (no decode), train φ on *imagined* latents too.
+- **Planner wiring:** cost on the **generated** latents `d(ẑ,zg)` (CEM ranks actions by imagined outcome —
+  the only action-dependent quantity); termination on the **current** state `d(z0,zg)`. A good metric lets
+  the WM rollout stay short (lean on the metric for the far horizon), dodging far-horizon WM degradation.
+- **VLM:** ruled OUT as a runtime cost (latency × ~96 candidates, forces a decode into blurry/hallucinated
+  pixels, too coarse); viable only as an **offline teacher** for cross-episode place labels (deferred).
+- **Pitfalls recorded:** wormholes (Δ-inequality amplifies latent aliasing globally — "confidently wrong"
+  vs raw L2's "flat but honest"), fragile min-max training, asymmetry mis-estimation, reachability ≠
+  controllability (our under-drive), bounded by WM fidelity (not a hallucination fix), coverage/verification
+  gaps.
+- **Environment (`context/figures/room.jpg`):** small carpet area, **landmark-rich perimeter** (fan/TV/
+  lamp/hamper/purifier/bed → low aliasing, softens wormholes) + low-texture centre (localized flat trap),
+  small but tens-of-chunks deep (far goals real).
+- **BUILD ORDER (decided):** (0) **simple temporal-distance MLP baseline** *with cross-trajectory negatives*
+  (the variable that decides flat-vs-not, more than the head; ViNG trick = cross-traj pairs → max-distance) →
+  (1) **QRL/IQE quasimetric** only where the baseline plateaus → (2) **topological graph** over real frames
+  (edges = `d_learned<τ`, Dijkstra, nearest node = CEM subgoal; real-frame nodes dodge hallucination + the
+  graph is a wormhole guard). The metric is a **hard prerequisite** for the graph; both rungs share ~80%
+  scaffold so the baseline isn't throwaway and de-risks QRL's fragile training. **Next concrete action =
+  encode-cache + sweep eval (radial/yaw/lateral) + rung-0 baseline; the sweep grade is the GO/NO-GO gate.**
+  All buildable/validatable **offline now**, independent of the retrain (which only gates the on-robot
+  far-goal payoff). See [[learned-distance-metric]], [[roadmap]] 6d, [[open-questions]] "Scoring function
+  alternatives".

@@ -200,8 +200,14 @@ it for LeKiwi**: the `envs/` dir has no LeKiwi/dataset env. Plan (eval-grounded,
   displacement curves (monotone + non-flat far out) before the robot. Then a **topological graph over real
   dataset frames** (edges = learned reach, Dijkstra → nearest node = CEM subgoal) for far goals — real-frame
   nodes **dodge the WM hallucination** imagined subgoals would trigger. Steps build offline now (independent
-  of the retrain); the on-robot far-goal payoff lands once the live-frame gap is also closed. **Full design +
-  objective derivation + refs: [[learned-distance-metric]].**
+  of the retrain); the on-robot far-goal payoff lands once the live-frame gap is also closed.
+  **Build order (decided 2026-06-09):** simple temporal-MLP baseline (rung 0, *with cross-trajectory
+  negatives* — the variable that decides flat-vs-not) → QRL/IQE quasimetric (rung 1) only where the
+  baseline plateaus → topological graph (rung 2). The metric is a **hard prerequisite** for the graph (its
+  edges *are* `d_learned`). The `room.jpg` environment is landmark-rich (low aliasing) → the cheap baseline
+  is worth running first. **Next concrete action = encode-cache + sweep eval (radial/yaw/lateral) + rung-0
+  baseline; the sweep grade is the GO/NO-GO gate before anything downstream.** Full design + objective
+  derivation + pitfalls + refs: **[[learned-distance-metric]].**
 - **6c — long-range:** topological waypoint graph (subsumed by 6d's learned-distance graph).
 
 Params from the evals: **step-8000**, **H = 3–5 chunks** (reliable rollout window; at f=10 → ~10–17 cm

@@ -3,6 +3,9 @@
 **Status: PLANNED (design settled 2026-06-09; not yet implemented).** The chosen replacement for the
 raw SD-VAE latent-L2 planning objective. This is the durable design home for the work flagged as the
 **#1 planner priority** in [[open-questions]] "Scoring function alternatives" and [[roadmap]] 6d.
+**Build order decided:** simple temporal-MLP baseline → QRL/IQE quasimetric → topological graph (see
+"Build order"); the metric is a hard prerequisite for the graph. **Next concrete action = encode-cache +
+sweep eval + rung-0 baseline + sweep grade (the GO/NO-GO gate).**
 
 > **Dependency note.** This does *not* fix the [[open-questions]] "Live-frame distribution gap" (the WM
 > hallucinates from OOD `z0`) — that is upstream and needs the recollect + retrain. A better distance
@@ -39,6 +42,26 @@ correctly *far* — the thing raw L2 cannot distinguish, and exactly what a plan
 
 The learned encoder's job is to **read pose/place out of the latent and ignore decoration** (floor
 grain, wall colour, lighting) — the directions that make raw L2 flat.
+
+## Environment (the actual room) — `context/figures/room.jpg`
+
+A small open carpet area ringed by **visually distinct landmarks** (black standing fan, TV + desk +
+office chair, floor lamp + framed picture, cream laundry hamper, white air purifier, grey curtains, bed
+with a teal blanket); the LeKiwi sits on the rug mid-frame. Three consequences for the metric:
+
+- **Landmark-rich perimeter → low perceptual-aliasing risk.** Distinct anchors per region mean distinct
+  poses rarely *look* identical — the biggest factor *in our favour*: it lets even a simple method learn
+  "which region / which heading," and it **softens the quasimetric's worst pitfall (wormholes from
+  aliasing)**.
+- **Low-texture beige carpet centre (+ translucent chair-mat) → the flat-appearance trap, but localized**
+  to floor-facing / centre poses, not the whole room.
+- **Small but many-chunks-deep** (~3 cm/chunk → crossing the rug is tens of chunks), so
+  far-goal-outside-one-plan-basin is a real regime here (consistent with the `nearfan` plateau).
+
+Net: a **forgiving** environment for distance learning — which is *why* the simple baseline (see "Build
+order") is worth running first. (The original attachment `room.png` is an **HEIC photo misnamed `.png`**;
+`sips -s format jpeg room.png --out x.jpg` to view — the committed `context/figures/room.jpg` is the
+converted copy.)
 
 ## The objective (Quasimetric RL — plain version)
 
@@ -84,6 +107,16 @@ Train an **ensemble (2–4 heads)**; use the **pessimistic (max)** distance for 
 — guards against single-head "wormhole" false shortcuts. VAE stays **frozen**; only φ + head train
 (minutes–~1 h on the H100). **Reads latents, never decodes** → the known decode-blur and pixel-space
 hallucination never touch the cost path. MRN (Metric Residual Network) is a simpler alternative head.
+
+**Encoder vs head — what's actually trained.** φ (the CNN) is a plain *encoder*: it maps a latent to an
+embedding and is **not itself a quasimetric**. The quasimetric properties (asymmetry, triangle inequality,
+`d(x,x)=0`) come entirely from the **IQE head** on top, which holds for *any* encoder weights. The two
+train **jointly end-to-end** under the QRL loss — φ carries all the capacity (learns *which* latent
+directions mean pose), IQE (≈parameter-free) supplies the geometry. A **single shared** encoder is used
+for both source and goal; directionality comes from the head, not from separate encoders (contrast
+contrastive RL's two encoders φ,ψ). Net: this is QRL's published image-observation recipe with φ reading
+the `[4,32,32]` SD-VAE latent instead of raw pixels. `torch-quasimetric` provides IQE as a drop-in, so we
+write only φ + the training loop.
 
 ## SD-VAE latent handling
 
@@ -160,8 +193,9 @@ inside CEM's ~96 rollouts.
 
 `scripts/measure_dist_sweep.py` gives **hand-placed ground-truth cm-displacement → latent** (radial +
 `--yaw-sweep`; add a **lateral** sweep). That is the held-out test for any candidate distance:
-*monotone in true displacement, and non-flat at 40–60 cm where raw L2 plateaus?* Rank **QRL vs a
-ViNG-style bucketed classifier vs raw-L2** on this before touching the robot. (Ties into the broader
+*monotone in true displacement, and non-flat at 40–60 cm where raw L2 plateaus?* Rank **the rung-0
+temporal-MLP, the rung-1 QRL quasimetric, and raw-L2** on this before touching the robot — the grade is
+the GO/NO-GO gate (see "Build order"). (Ties into the broader
 "rigorous eval" thread — this is the absolute, physically-grounded metric the WM-relative 6a
 `reached_ratio` lacked.)
 
@@ -206,15 +240,50 @@ sharpest teeth (the metric amplifies the aliasing our latents are prone to; and 
 under-drive, so an optimal-control metric over-promises). All of the above are **testable offline on the
 sweeps + ensemble disagreement before the robot**.
 
-## Subgoal layer (for far goals — after the metric)
+## Subgoal layer — topological graph (for far goals, AFTER the metric)
 
-Far goals sit outside one plan's basin (~10 cm reach). **Recommended: a topological graph over the
-offline buffer** (SGM / ViNG-style) — and crucially over **real dataset frames as nodes**, so every
-subgoal is **in-distribution by construction → dodges the hallucination** that WM-*imagined* subgoals
-would trigger (our confirmed live-distribution-gap). Nodes = sparsified dataset latents; edges = pairs
-with `d_learned < τ` where **τ ≈ one CEM reach (~3 chunks)**, admitted with the ensemble-pessimistic
-distance; Dijkstra to the goal node; hand CEM the **first waypoint** as its target; recurse. This
-dissolves the plateau — CEM never sees a far goal, only an in-basin subgoal.
+The metric fixes the gradient; the graph fixes the **reach**. One CEM plan covers ~10 cm (H=3), and the
+metric is least reliable far-field — so for a goal across the room, **decompose it into a chain of nearby
+subgoals, each one CEM can drive**, and do the long-range routing with discrete search instead of trusting
+the raw continuous metric across the whole room. Mental model: the 50 episodes already traced a tangle of
+paths; the graph **compresses that into a road-map** and you navigate by shortest-path on it, handing CEM
+one short hop at a time.
+
+**Anatomy (NanoNAV specifics):**
+- **Nodes = real dataset frames.** Sparsify the ~4,490 chunk-latents into representative "places" (simple
+  downsample, or SGM two-way-consistency merge of interchangeable frames). Critical: nodes are **real,
+  in-distribution latents**, not imagined ones.
+- **Edges = "reachable in ≈ one plan," weighted by the metric.** Directed edge A→B with weight
+  `d_learned(A,B)` whenever `d_learned(A,B) < τ`, **τ ≈ one CEM reach (~3 chunks)** — admitted with the
+  **ensemble-pessimistic** distance. **τ is the key knob (= SoRB `MaxDist`):** too large → admits wormholes
+  / "teleports"; too small → graph fragments into disconnected within-episode chains and far goals have no
+  path. Set it to one controller-reachable hop.
+- **Goal insertion + localization:** encode goal → nearest node (goal node); each step encode the current
+  frame → nearest node (source). Both are k-NN-in-`d_learned` lookups.
+
+**Runtime loop:** localize → **Dijkstra** (directed, weights `d_learned`) source→goal → hand CEM the
+**first waypoint** as `zg` → CEM+WM drive that short in-basin hop → on arrival
+(`d_learned(now, waypoint) < switch-thresh`) **re-localize + re-plan** to the next node → recurse. So:
+**graph = global topology, CEM+WM = local dynamics, and the metric is trusted only on the short
+in-distribution pairs it's most reliable on** — never on a far raw gradient.
+
+**Why this dodges our two bites:** (1) **hallucination** — every subgoal CEM gets is a *real* frame → clean
+`zg`, WM rolls forward only a few chunks from the *real* current frame toward a *nearby* target; we never
+ask it to imagine a far future or seed from an OOD pose (the reason the graph beats WM-imagined subgoals
+*for us*). (2) **far-field metric error** — discrete shortest-path over **vetted short edges** can't be
+silently misrouted by one bad long-range value; **the graph doubles as a wormhole guard** (a spurious
+short metric estimate shows up as an implausible edge / ensemble disagreement you filter at build time).
+
+**Failure modes:** coverage (50 eps → possibly poorly-connected graph; improves with retrain);
+localization errors on OOD frames → mis-route (narrows but doesn't escape the live-distribution
+dependence); **approach-heading / directionality** (a node is a frame at one heading; arriving from
+another, the view may not match — the directed metric + switch-thresh must tolerate it); stuck/timeout →
+SGM-style **self-supervised edge removal** (fail a hop repeatedly → delete that edge, re-route).
+
+This is the evolution of the original **Stage 7** waypoint graph, but with **edges from `d_learned`**
+instead of DepthAnything3 geometric reconstruction (no separate metric-reconstruction step; reuses the
+distance head). Knobs map to [[open-questions]] "Waypoint graph construction details" / "Waypoint
+switching".
 
 **Deferred (post-retrain):** WM-imagined subgoals ("plan fully in the WM, no manual graph", Director /
 LEXA / Subgoal-Diffuser) — revisit once coverage/hallucination is fixed.
@@ -229,16 +298,52 @@ time-index across episodes) — and distill into φ as a second supervision chan
 temporal-adjacency; VLM supplies coarse global anchoring. Optional; add only if the sweep eval shows
 cross-episode regions too flat. (Lit: RL-VLM-F, VLM-RM, LIV, LM-Nav.)
 
+## Build order — simple temporal-MLP baseline BEFORE the quasimetric
+
+**Decision (2026-06-09): build a simple temporal-distance MLP first as a baseline, then escalate to QRL
+only where it plateaus.** Not "build both at once," and not "dive straight into QRL." Rationale:
+
+- **~80% shared scaffold, not throwaway.** Both need the same latent cache, pair sampler, **CNN φ**, and
+  sweep eval; only the head + loss differ (MLP+MSE/Huber vs IQE+QRL min-max). The baseline stands up
+  everything the quasimetric needs, **plus a permanent comparator** for the eval.
+- **The room is forgiving enough that the baseline has a real shot** (landmark-rich perimeter → "which
+  region / heading" is easy; see "Environment"). If it passes the sweeps, we may not need the fragile QRL
+  min-max training for v1.
+- **De-risks the quasimetric:** QRL's min-max / dual-ascent is the fragile part; debugging "broken or just
+  hard?" is far easier with a working baseline on the same harness.
+
+**The variable that actually decides flat-vs-not is the cross-trajectory negatives, NOT the head.** A
+within-trajectory-only temporal regressor *will* be flat across regions (no labels there). The cheap
+decisive upgrade is the **ViNG trick: label cross-trajectory pairs as max-distance** (or bucket
+near/medium/far). Build the baseline *with* that, and ablate with/without it.
+
+**Expected outcome (still informative either way):** likely **good in-region / near-goal** (landmarks
+carry it), **flat or noisy cross-region + on the low-texture centre** (time≠space + multimodality bite).
+That *localizes* where QRL is actually needed (the far-field / cross-region regime the graph edges depend
+on) and gives a baseline number to beat.
+
+**Rungs: (0) temporal-MLP + cross-traj negatives → (1) QRL/IQE quasimetric → (2) topological graph.** The
+metric (rung 0/1) is a **hard prerequisite** for the graph — its edges *are* `d_learned` — and it delivers
+value on its own (in-basin CEM), so it is strictly first; the graph cannot precede it.
+
 ## Sequencing
 
-1. Pre-encode dataset → latents (once) + extend the sweep eval (lateral). *(offline, now)*
-2. Train QRL metric (+ ViNG-classifier baseline); rank on sweep monotonicity. *(offline, now)*
-3. Swap into CEM cost + termination; recalibrate reach-thresh. *(improves single-goal planning alone)*
-4. Topological graph over real frames → subgoal layer. *(far goals)*
-5. *(later, post-retrain)* WM-imagined subgoals; optional VLM-teacher channel.
+0. **Pre-encode dataset → latents (once, cache) + extend the sweep eval** (add lateral to radial+yaw).
+   *(offline, now)*
+1. **Rung 0 — simple temporal-distance MLP** (+ cross-trajectory negatives; ablate). Grade on the sweeps.
+   *(offline, now)*
+2. **Rung 1 — QRL/IQE quasimetric** (+ ensemble), only for the regime where rung 0 plateaus. Grade vs
+   rung 0 + raw-L2; check ensemble disagreement (wormholes). **The sweep grade is the GO/NO-GO gate for
+   the whole approach.** *(offline, now)*
+3. **Swap the winner into CEM** — cost on the generated `ẑ`, termination on `z0`; recalibrate
+   reach-thresh; test on a well-covered goal (`nearfan2`-style). *(improves single-goal planning alone)*
+4. **Rung 2 — topological graph** over real frames → subgoal layer. *(far goals)*
+5. *(later, post-retrain)* WM-imagined subgoals; optional offline VLM-teacher channel.
 
-Steps 1–3 are **independent of the retrain** and give a planner win on their own; the on-robot far-goal
-payoff arrives once the live-frame distribution gap is also closed.
+**Next concrete action = steps 0–2** (the smallest thing that answers "does a learned distance go non-flat
+on our latents?"); treat the sweep grade as the gate before anything downstream. Steps 0–3 are
+**independent of the retrain**; the on-robot far-goal payoff arrives once the live-frame distribution gap
+is also closed.
 
 ## References
 

@@ -178,6 +178,14 @@ ranks actions by imagined outcome — the only action-dependent quantity), **ter
 `measure_dist_sweep` ground-truth-displacement curves first. Subgoals = a **topological graph over real
 dataset frames** (real-frame nodes dodge the WM hallucination that imagined subgoals would trigger);
 WM-imagined subgoals + an optional offline VLM-teacher are deferred. Tracked as [[roadmap]] **6d**.
+**Build order (2026-06-09):** rung 0 = a **simple temporal-distance MLP baseline** *with cross-trajectory
+negatives* (the variable that decides flat-vs-not — more than the head; ViNG trick: cross-traj pairs →
+max-distance) → rung 1 = QRL/IQE quasimetric only where the baseline plateaus → rung 2 = topological graph.
+The metric is a hard prerequisite for the graph; both rungs share ~80% scaffold (latent cache, CNN φ,
+sweep eval), so the baseline isn't throwaway and de-risks the fragile QRL min-max training. The `room.jpg`
+environment is landmark-rich (low aliasing) so the baseline has a real shot; expected to be good in-region
+and flat cross-region → localizes where QRL is needed. **Next = encode-cache + sweep eval + rung-0; the
+sweep grade is the GO/NO-GO gate.** Full design + pitfalls: [[learned-distance-metric]].
 
 ## Future Extensions
 
