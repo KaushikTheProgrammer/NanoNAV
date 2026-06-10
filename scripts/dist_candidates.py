@@ -217,6 +217,42 @@ class VJEPA21Tokens(Candidate):
         return float(1.0 - F.cosine_similarity(ta, tb, dim=-1).mean())
 
 
+class WMTokenCos(Candidate):
+    """Token-cosine in the 6e semantic WM's OWN latent space (webdino codec: facebook/dinov2-small,
+    224px, [384,16,16], latent_scale applied). feature_is_wm_latent: raw WM-generated token latents
+    from wm_imagined_arm.py are scored DIRECTLY (cosine is scale-invariant, so the codec's
+    latent_scale divisor is harmless); real frames are encoded through the same frozen codec.
+    This is the deployment cost of the semantic stack (lekiwi_engine cost_metric=cosine)."""
+    name = "wm_token_cos"
+    feature_is_wm_latent = True
+
+    def __init__(self, device="cpu", nanowm_src=None, model_id="facebook/dinov2-small",
+                 latent_scale=2.4):
+        import torch
+        src = nanowm_src or os.path.join(_HERE, "..", "external", "nanowm", "src")
+        if src not in sys.path:
+            sys.path.append(os.path.abspath(src))
+        from latent_codecs.semantic import WebDINOLatentCodec   # noqa: E402
+        from latent_codecs.base import LatentShape              # noqa: E402
+        self.device = torch.device(device)
+        self.codec = WebDINOLatentCodec(
+            model_path=model_id, latent_shape=LatentShape(384, 16, 16),
+            input_size=224, patch_size=14, precision="fp32", latent_scale=latent_scale)
+        self.codec.to(self.device)
+        torch.set_grad_enabled(False)
+
+    def embed(self, imgs):
+        import torch
+        views = _to_model_views(imgs)
+        t = torch.stack([preprocess_frame(v) for v in views]).to(self.device)
+        return self._batched(t, lambda b: self.codec.encode(b)).cpu()          # [B,384,16,16]
+
+    def dist(self, fa, fb):
+        import torch.nn.functional as F
+        ta, tb = fa.reshape(fa.shape[0], -1).T, fb.reshape(fb.shape[0], -1).T  # [hw, C]
+        return float(1.0 - F.cosine_similarity(ta, tb, dim=-1).mean())
+
+
 REGISTRY = {
     "pixel_l1": lambda device, kw: PixelL1(),
     "sdvae_l2": lambda device, kw: SDVAEL2(device=device),
@@ -225,6 +261,7 @@ REGISTRY = {
     "vip_l2": lambda device, kw: VIPL2(device=device),
     "vjepa21": lambda device, kw: VJEPA21Tokens(device=device, nanowm_src=kw.get("nanowm_src"),
                                                 model_path=kw.get("vjepa21_model_path")),
+    "wm_token_cos": lambda device, kw: WMTokenCos(device=device, nanowm_src=kw.get("nanowm_src")),
 }
 
 DEFAULT_SET = ["pixel_l1", "sdvae_l2", "dinov2_mse", "dinov2_cos"]
