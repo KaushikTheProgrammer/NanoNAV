@@ -190,7 +190,10 @@ Two consistency points specific to using SD-VAE latents:
   clean VAE-encoded dataset latents it could misbehave on imagined ones. So φ's training set should
   **include WM-rolled-out latents** (or at least be validated on them) — the SD-VAE-latent version of the
   live-distribution-gap concern, one level down.
-  - **Decision (2026-06-09): VALIDATE on WM latents first, ADD them to the training set later.**
+  - **Decision (2026-06-09): VALIDATE on WM latents first, ADD them to the training set later.
+    → RESOLVED 2026-06-10: the validation arm FIRED — imagined ẑ sit +17.7 (23σ) off the clean curve
+    and d rises within rollouts (degradation outruns approach). ADD WM-rolled-out latents to φ's
+    training set; see [[experiment-log]] 2026-06-10.**
     Rungs 0/1 train on clean encoded dataset latents (cheap, simple), but the sweep eval **must include a
     WM-imagined-`ẑ` arm** — feed φ generated latents (a short WM rollout to a known displacement) and check
     `d_learned(ẑ, zg)` tracks the clean-latent curve. If clean and imagined latents of the **same pose** map
@@ -518,8 +521,13 @@ Implications for the retrain decision point:
 ## Sequencing — phased plan (revised 2026-06-09)
 
 **Phase 0 — measuring stick + free candidates** (~1–2 days, mostly Mac; decides everything downstream):
-**✅ CODE BUILT 2026-06-09 (all five tools; harness smoke-tested end-to-end on a synthetic sweep —
-PASS and FAIL paths both verified). Remaining: run on real data (capture session + pod encodes).**
+**✅✅ RUN ON REAL DATA 2026-06-10 (sweep_nearchair, 40 placements; forks still uncaptured). GATE A:
+dinov2_mse/cos PASS (radial ρ 0.943, far-slope 12–21σ, yaw sharp); sdvae_l2 FAILS the far band
+(1.25σ/0.80σ vs 3σ gate — the plateau, measured); pixel_l1 fails lateral ρ. Weld check: imagined ẑ
++17.7 (23σ) off the clean curve, d *rises* within every rollout → fold WM latents into φ training
+(decision resolved YES) + +1-weighted cost supported. ⇒ distillation variant ACTIVATED; bar for
+rung 0 = ρ>0.94 / far-slope>12σ. Full table: [[experiment-log]] 2026-06-10 +
+`results/dist_harness_nearchair/`.**
 0a. `scripts/build_latent_cache.py` ✅ — chunk-boundary frames (direct parquet+mp4 read) → exact
     `_preprocess` letterbox → checkpoint codec encode (**deterministic posterior mode**, vs the
     engine's sampling — recorded in meta.json) → `latents.npy` + `index.csv` (RGB pointers) +

@@ -911,3 +911,69 @@ with a **token-space DINO cost (no decode)**, decisively beating VAE-latent NWM 
   our featureless-carpet room.
 
 Next: unchanged — close Phase 0 (capture session + pod cache/imagined runs → Gate A table).
+
+## 2026-06-10 — GATE A RUN (sweep_nearchair): sdvae_l2 FAILS the far band as diagnosed; frozen DINOv2-patch PASSES; clean↔imagined weld LOOSE (23σ) — distillation variant + +1-weighted cost activated
+
+Phase 0 closed on real data. Capture session at the `nearchair` goal (guided `capture_sweep.py`,
+40 placements: noise×8, radial r10–r60, lateral ±10–±60, yaw ±30°, yawd±20°@r40, grid ×6; **forks not
+captured** — appendable later, guided mode auto-skips done arms). Pod side: latent cache rebuilt
+(4,500 × [4,32,32], step-12000 codec, deterministic mode), `wm_imagined_arm.py` rolled 18 imagined
+latents (6 radial starts × 3 straight chunks), `dist_harness.py` graded 4 frozen candidates.
+Artifacts: `results/sweep_nearchair{,_imagined}/`, `results/dist_harness_nearchair/` (gate_report.md,
+metrics.csv, per-candidate curves). Placement was tape-measure-approximate — fine for the verdicts:
+Spearman ρ needs only ordinal correctness and the pass/fail margins are 2–7×.
+
+**The Gate A table:**
+
+| candidate | radial ρ | far-band slope/σ (radial / lateral) | yaw basin | verdict |
+|---|---|---|---|---|
+| pixel_l1 | 1.00 | 706 / 386 | centered, 5686σ | FAIL (lateral ρ 0.878) |
+| **sdvae_l2 (current objective)** | 1.00 | **1.25 / 0.80** | centered, 9.3σ | **FAIL** |
+| dinov2_mse (vits14 patch) | 0.943 | 11.8 / 20.2 | centered, 101σ | **PASS** |
+| dinov2_cos (vits14 patch) | 0.943 | 12.0 / 21.5 | centered, 102σ | **PASS** |
+
+**Conclusions:**
+1. **The objective bottleneck is now a number.** sdvae_l2 is perfectly *ordered* to 60 cm (ρ=1.0) but
+   its 40–60 cm gradient is **below the same-pose noise floor** (1.25σ/0.80σ vs the 3σ gate): one chunk
+   (~3 cm) moves the cost by ~0.3 against σ=0.77 standing still. CEM cannot see far-field progress —
+   the measured mechanism behind the 6b far-goal stalls and the under-credited rotate-to-face.
+2. **Information is in the pixels; the failure is the representation.** pixel_l1 and DINOv2 have huge
+   far-band SNR on the *same frames*; yaw basin sharp + exactly centered for every candidate; lateral
+   monotone to ±60. No perceptual-aliasing wall at room scale — SD-VAE-L2 buries the pose signal,
+   as designed-for in [[learned-distance-metric]].
+3. **Frozen DINOv2-patch is a working room-scale distance with zero training** — the measurement no
+   paper had (DINO-WM/RAE-NWM never graded 0–60 cm flatness). Heading stays sharp (the
+   rotation-invariance worry didn't materialize). ⇒ **rung-0 patch-DINO distillation variant
+   ACTIVATED** (per the Gate-A trigger in [[learned-distance-metric]] "Rung-0 additions") and the
+   **semantic-retrain branch gets its empirical prior** (codec-selection signal).
+4. **Clean↔imagined weld is LOOSE — the VALIDATE-FIRST gate fired.** On the raw-latent path (no
+   decode): imagined latents sit **+17.7 above the clean curve (23σ)**, ρ collapses to 0.29, and
+   within every rollout d *increases* as the robot nominally approaches (+1→+2→+3 worse at all six
+   start ranges) — rollout-step degradation outruns approach signal. ⇒ **fold WM-rolled-out latents
+   into φ's training/validation set** (decision resolved YES) and **+1-weighted cost** strongly
+   supported over endpoint-only. (dinov2's weld number is confounded by decode blur — it scores
+   decoded imagined frames; only sdvae_l2 reads raw ẑ.)
+5. **Why near goals converged anyway:** the sdvae_l2 basin is deep/sharp near-field (9–12σ yaw). The
+   system was never broken near goals — it is blind far from them.
+
+**Not established:** wormholes/cross-region behavior (one goal, one region — needs the distance-field
+viz over the latent cache + a second goal's sweep), action-ranking margins (fork arm uncaptured).
+
+**Harness fixes found by this run (committed 7c03385):** (1) Gate A now grades **clean captures only**
+— the first run mixed the 18 imagined rows into the radial curve and failed everything spuriously;
+imagined rows get their own `radial_imagined` grade + **weld_offset(/σ)** metric. (2)
+`wm_imagined_arm.py` now reshapes the engine's **flattened** rollout latents ([1,1+H,4096] not
+[1,1+H,C,h,w]) to [4,32,32]. Also: guided protocol mode added to `capture_sweep.py` (c215d72 — walks
+all 52 placements with placement instructions; resumable).
+
+**⚠️ Ops incident (resolved):** a Mac→pod results sync deleted everything in `/workspace/results/`
+except the synced sweep dirs (checkpoints included; pattern = `rsync --delete`-like). **Restored in
+full from the RunPod NFS snapshot** `/workspace/.snapshot/big_catalog_2026-06-10_01_42_17_UTC` (taken
+20 min pre-deletion); latent cache (built in the gap) rebuilt from scratch. Backstop discovered:
+`kaushikpraka/nanowm-lekiwi-b2-f10-step8000` on HF. **Lesson: never `--delete` toward
+/workspace/results; checkpoints exist nowhere else** (wandb has metrics only) — consider uploading
+step-12000 to HF.
+
+**Next:** Phase 1 (rung-0 learned distance) with patch-DINO distillation as the lead variant; bar to
+beat = ρ>0.94 / far-slope>12σ. Optionally append forks + a second-goal sweep first. See
+[[learned-distance-metric]] "Sequencing" Gates A/B.
