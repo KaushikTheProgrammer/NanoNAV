@@ -1,6 +1,6 @@
 # Semantic WM Retrain (Option C) — Plan & Status
 
-**Status: IN PROGRESS — C0 COMPLETE (2026-06-10): action branch ALIVE on DINOv2 tokens; winner = x0 + adaln_fuse (RMS 0.182, GT-margin 21.3); additive control reproduced Finding #4 exactly (RMS 0.0028). C0-ext (12k steps) + C0.5 decoder running. See [[experiment-log]] 2026-06-10 C0 RESULT.** The decision that
+**Status: GATE C PASSED (2026-06-10) — the 12k x0+adaln_fuse model is planner-ready: kill-switch RMS 0.333 / margin 43.4; offline CEM at the WM ceiling (ratio 1.01, 100% sign agreement); weld ρ 0.876 (SD-VAE 0.29); nearhamper hallucination FIXED (same-scene rolls). C0/C0.5/C1-offline all done. **NEXT = C1 on-robot A/B (operator)** — exact command in [[experiment-log]] 2026-06-10 GATE C. Then C2 recollection + C3 graph.** The decision that
 supersedes the SD-VAE planning stack's objective problem at the root: **retrain the world model to
 predict frozen DINOv2 patch tokens** (flow-matching / x0 objective) instead of SD-VAE latents under
 diffusion-forcing, so the WM's native rollout space *is* the Gate-A-validated distance space.

@@ -1067,3 +1067,45 @@ indistinguishable (`val_015000.png`) — landmarks, robot arm, viewpoint all fai
 (`results/c1_smoke_strip.png`): imagined frames are SOFT-BUT-CORRECT renderings of the same scene —
 the benign-averaging OOD behavior Option C was chosen for, visible already at 3k steps. C1 offline
 scope complete; remaining C1 = on-robot A/B (operator). Everything now blocks on C0-ext → Gate C.
+
+## 2026-06-10 (GATE C — PASSED) — the 12k semantic WM is planner-ready; 6b hallucination FIXED at the source; on-robot A/B is the handoff
+
+C0-ext (x0+adaln_fuse, 12k steps, val 0.0435 still improving) graded on the full ladder:
+
+1. **Kill-switch @12k: PASS, strengthening.** action-emb RMS **0.333** (3k: 0.182), GT-vs-zero margin
+   **43.4** (3k: 21.3) — the action branch gains authority with training, the opposite of atrophy.
+2. **Offline CEM action recovery (24 scenes, DDIM=3, token-cosine objective): at the WM ceiling.**
+   reached_ratio **1.01** overall (translation 0.96 / pivot 1.10 / arc 1.04 / slow 0.94), **100%
+   beat-do-nothing, 100% sign agreement on Δx AND Δθ** in every bucket, dxErr 1.4 cm / dθErr 2.2°.
+   The planner can invert this model. (`results/offline_planning_c0ext/`)
+3. **Weld re-test (wm_imagined_arm @12k + wm_token_cos): the SD-VAE pathology is mostly gone.**
+   Imagined-vs-nominal ρ **0.876** (SD-VAE: 0.29) — imagined tokens preserve position ordering across
+   starts; offset vs clean curve is ~constant +0.22 (harmless for argmin ranking); within-rollout
+   degradation:signal ≈ **1.7:1** (SD-VAE: 10:1) — still favors `--cost-mode first`, as designed.
+   Clean-capture grades unchanged (wm_token_cos passes Gate A: ρ .943/.976, slope 11–21σ, yaw 91σ).
+   (`results/dist_harness_dino/`, `results/sweep_nearchair_imagined_dino/`)
+4. **Hallucination re-test: FIXED.** Rolling from the nearhamper goal — the exact image that produced
+   the wrong-room hallucination in 6b — the imagined strip stays in the SAME scene (hamper + dark
+   object + arm, soft regression blur), token-dist-to-start 0.28–0.36 ≈ the in-dist nearfan2 control
+   (0.31–0.38). (`results/hamper_retest_*.png`) ⚠️ One flag for the operator: the nearfan2 control
+   strip renders soft with curtain-like streaks — plausibly the same scene dimly rendered, but
+   ambiguous to the eye; judge on-robot.
+
+**The semantic stack (6e) now beats the SD-VAE stack on every offline axis** — metric (Gate A),
+action conditioning (43.4 margin), weld (ρ 0.876 vs 0.29), OOD behavior (same-scene vs different-room)
+— using only the existing 50 episodes. Tooling patched along the way: `offline_planning_eval.py` grew
+`--visual_metric auto` + decoder-less guard; `wm_imagined_arm.py` grew `--token-decoder`.
+
+**HANDOFF → on-robot A/B (needs operator).** From the pod, tunnel up, then:
+```
+export WEBDINO_MODEL_PATH=facebook/dinov2-small   # REQUIRED — config default is webssl, fails loudly without this
+/workspace/nanowm-venv/bin/python scripts/lekiwi_mpc.py execute --planner wm \
+  --nanowm-src external/nanowm/src \
+  --ckpt "/workspace/results/20260610_112629-C0ext-dinoB1-x0-adalnfuse-F4S10-lekiwi/checkpoints/across_timesteps/epoch=19-step=12000.ckpt" \
+  --goal goals/nearfan2/goal.png --ip 127.0.0.1 \
+  --token-decoder /workspace/results/token_decoder/decoder.pt \
+  --reach-thresh 0.08 --rerun
+```
+(token-cosine scale: noise floor ~0.01, 10 cm ≈ 0.14, plateau ~0.28–0.42 → start `--reach-thresh`
+0.06–0.10. A/B vs the SD-VAE step-12000 stack on the same goals; then `--cost-mode first` as the
+second arm. Camera re-probe first if the Pi host restarted.)

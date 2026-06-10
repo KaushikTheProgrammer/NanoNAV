@@ -61,6 +61,8 @@ def main():
     ap.add_argument("--action-mean", type=float, nargs=2, default=None,
                     help="integrate_se2 stats (REQUIRED on the pod — dataset fallback is dead there)")
     ap.add_argument("--action-std", type=float, nargs=2, default=None)
+    ap.add_argument("--token-decoder", default=None,
+                    help="train_token_decoder.py ckpt — needed for decoded frames with semantic (encoder-only) WM ckpts")
     args = ap.parse_args()
 
     sys.path.append(os.path.join(args.nanowm_src, "sample"))
@@ -75,7 +77,8 @@ def main():
         sys.exit(f"[imagined] {args.sweep}: no radial captures (labels r10/r20/... or '<N>cm')")
 
     lp = LekiwiPlanner(args.ckpt, device=args.device, ddim=args.ddim, horizon=args.horizon,
-                       action_mean=args.action_mean, action_std=args.action_std, n_elite_viz=0)
+                       action_mean=args.action_mean, action_std=args.action_std, n_elite_viz=0,
+                       token_decoder=args.token_decoder)
 
     os.makedirs(args.out, exist_ok=True)
     frames_dir = os.path.join(args.out, "frames")
