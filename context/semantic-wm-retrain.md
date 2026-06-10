@@ -85,6 +85,12 @@ de-risks the *recipe*. Far goals still need the graph: DINO cosine is appearance
   loss (~5 lines, biggest win), (2) 2-4x decoder capacity + 30-50k steps, (3) light PatchGAN,
   (4) check RAE-NWM's frozen RAE decoder for dinov2-small at C2, (5) diffusion decoder (sampling
   kills regression blur; days). Decoder is NEVER in the cost path — purely operator UX.
+- **Rollout truncation for cost-mode first (logged 2026-06-10, operator: keep full horizon for now).**
+  With `first`, frames +2/+3 don't affect the score, and sequential-causal generation makes a
+  `--gen-frames 1` truncation exactly equivalent for +1 ⇒ ~2-3x planning-latency win (~7s → ~2-3s
+  per replan). Implementation when wanted: truncate candidate scoring, roll the full horizon once
+  for the winning elite (viz strip survives); verify +1 bit-parity on fixed seed + re-run the
+  offline CEM probe. Kept un-truncated for now for first-vs-last A/B flexibility.
 
 ## Risks
 
