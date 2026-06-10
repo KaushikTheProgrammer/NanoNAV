@@ -1033,3 +1033,28 @@ Artifacts: `results/c0_diag_C0*/action_diagnostic.{png,json}`, run dirs `results
 `results/c0_probe_summary.md`. **Next: C0-ext — x0+adaln_fuse to 12k steps (launched), then the
 Gate C ladder (offline CEM action recovery / weld re-test / nearhamper roll). C0.5 viz decoder
 training in parallel.** See [[semantic-wm-retrain]].
+
+## 2026-06-10 (C1 offline) — token-space planner integrated + smoke-tested on the 3k probe ckpt; three-way metric parity
+
+While C0-ext trains, the C1 offline pieces landed (nanowm 00b2e76, parent ff47c56/a6413a6):
+- **Cosine-objective layout bug fixed before it bit:** `objective.py`'s token-cosine assumed
+  token-major flattening, but `DiffusionWorldModel.rollout` flattens `[C,h,w]` channel-major — the
+  reshape would have silently mixed channels across tokens. Added `channels_first` (tokens =
+  `reshape(C, hw).T`), plus **`mode="first"`** (+1-chunk cost — least WM-degraded, the chunk actually
+  executed) alongside last/all.
+- **Engine** (`lekiwi_engine.py`): `cost_metric` auto (mse for sd_vae, token-cosine for semantic),
+  `cost_mode`, decoder-less viz gating, optional `token_decoder` (C0.5 checkpoint) for imagined
+  strips; termination `dist_to_goal` now uses the SAME metric as the cost. `lekiwi_mpc.py` grew
+  `--cost-metric/--cost-mode/--token-decoder`.
+- **Smoke test on the C0c 3k-step probe ckpt PASSED**: boot `latent=[384,16,16] (webdino),
+  cost=cosine/first`; `dist_to_goal` reproduces the Gate-A dinov2_cos curve on real sweep frames —
+  noise 0.010 ≪ r10 **0.139** < r40 0.254 < yaw+30 0.352 (Gate A: 0.134 @10cm, plateau 0.28–0.42).
+  CEM returns sane commands. → `--reach-thresh` for the semantic stack ≈ **0.05–0.10**.
+- **`wm_token_cos` harness candidate added** (the deployment cost in the WM's own codec space;
+  scores raw WM token latents directly). Parity: harness 0.1394 == engine 0.1394 on the same
+  r10-vs-goal pair. The Gate-C weld re-test will grade `wm_imagined_arm` output with it.
+
+Running: C0-ext (x0+adaln_fuse → 12k, `results/C0ext.log`, loss ~0.21 at this writing) and the C0.5
+viz decoder. Next (blocked on those): Gate C ladder — action_diagnostic @12k, offline CEM action
+recovery, weld re-test (beat SD-VAE's +23σ / d must FALL within rollouts), nearhamper roll.
+On-robot A/B remains the operator handoff point.
