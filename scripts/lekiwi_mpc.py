@@ -284,6 +284,8 @@ def rr_log_observed(ctx, step, frame):
             _rr_set_time(rr, step, rec)
             rr.log("live", rr.Image(frame), recording=rec)
             rr.log("model/live", rr.Image(model_view), recording=rec)
+            rr.log("status", rr.TextLog(f"step {step}: observed -> PLANNING (imagined panels still show step {step - 1})"),
+                   recording=rec)
         except Exception as e:
             print(f"[rerun] observe-time log failed ({e})")
 
@@ -308,6 +310,7 @@ def rr_log(ctx, step, frame, goal, res: PlanResult, executed):
                 rr.log("model/live", rr.Image(res.model_live_rgb), recording=rec)
             if res.model_goal_rgb is not None:
                 rr.log("model/goal", rr.Image(res.model_goal_rgb), recording=rec)
+            rr.log("status", rr.TextLog(f"step {step}: plan ready -> executing"), recording=rec)
             rr.log("dist_to_goal", Scalar(res.dist_to_goal), recording=rec)
             rr.log("cmd/vx", Scalar(executed[0]), recording=rec)
             rr.log("cmd/theta_deg", Scalar(executed[1]), recording=rec)
