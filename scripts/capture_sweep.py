@@ -12,6 +12,12 @@ Writes a sweep dir for dist_harness.py:
     <out>/frames/NNN_<label>_full.png + _model.png
     <out>/manifest.csv      idx,label,arm,frame_full,frame_model,imagined,latent,note,t
 
+By default the session is GUIDED: the script walks the full Gate-A protocol below step by
+step, telling you where to place the robot before each capture (Enter=capture, s=skip,
+b=back/redo, q=leave guided mode). Already-captured labels are skipped on re-run, so a
+session is resumable across breaks. --freeform gives the raw label prompt instead; guided
+mode also accepts an ad-hoc label at any step for extra captures.
+
 Protocol (one session, ~50-60 placements; ~Gate A needs radial+lateral+yaw+noise at minimum
 — see learned-distance-metric.md "Evaluation" + the sweep-design discussion):
   1. Place robot AT the goal pose. `g` -> snapshot goal.  Then `n noise 8` (same-pose noise burst).
@@ -30,7 +36,8 @@ Labels are the ground truth — get them right; `?` prints this protocol, `ls` s
 Examples (Mac on the LAN, Pi host running):
   python scripts/capture_sweep.py --ip 10.0.0.125 --out results/sweep_nearfan2
   python scripts/capture_sweep.py --ip 10.0.0.125 --out results/sweep_x --goal goals/nearfan2/goal.png
-  python scripts/capture_sweep.py --ip 10.0.0.125 --out results/sweep_x --yaw-sweep   # motorized yaw arm
+  python scripts/capture_sweep.py --ip 10.0.0.125 --out results/sweep_x --freeform   # raw label prompt
+  python scripts/capture_sweep.py --ip 10.0.0.125 --out results/sweep_x --yaw-sweep  # motorized yaw arm
 
 SAFETY: capture is read-only (no motion). --yaw-sweep commands PURE ROTATION (confirm prompt,
 clamped, Ctrl-C -> zero+disconnect). Re-probe the camera after any Pi-host restart (USB
@@ -70,6 +77,13 @@ def capture(robot, out, frames_dir, man, idx, label, note=""):
     return frame
 
 
+def snapshot_goal(robot, out):
+    frame = get_top_frame(robot)
+    save_png(frame, os.path.join(out, "goal.png"))
+    save_png(letterbox_rgb(frame), os.path.join(out, "goal_model.png"))
+    print("[capture] goal snapshot saved (goal.png + goal_model.png)")
+
+
 def coverage(man_path):
     import csv as _csv
     arms = {}
@@ -85,12 +99,218 @@ def coverage(man_path):
         print(f"[coverage] Gate A still needs: {', '.join(missing)}")
 
 
+def label_counts(man_path):
+    import csv as _csv
+    counts = {}
+    if os.path.exists(man_path):
+        with open(man_path, newline="") as f:
+            for row in _csv.DictReader(f):
+                counts[row["label"]] = counts.get(row["label"], 0) + 1
+    return counts
+
+
+# ===================== guided protocol =====================
+
+def build_plan():
+    """Ordered Gate-A protocol: every step = where to place the robot + the label it captures."""
+    plan = []
+
+    def add(section, kind, label, instr, count=1):
+        plan.append({"section": section, "kind": kind, "label": label,
+                     "instr": instr, "count": count})
+
+    s = ("GOAL + NOISE FLOOR",
+         "Everything is measured from the goal pose. Tip: lay a tape measure on the floor from the\n"
+         "    goal pose straight back along the robot's facing direction — that line is the 'goal axis'.")
+    add(s, "goal", None,
+        "Place the robot exactly AT the goal pose (the view you want as the goal). "
+        "This pose is the zero reference for every arm.")
+    add(s, "cap", "noise",
+        "Do NOT move the robot — capturing 8 same-pose frames for the noise floor sigma "
+        "(the denominator of every Gate A metric).", count=8)
+
+    s = ("RADIAL (6)",
+         "Straight-line distance curve. Translate only — keep the goal heading at every stop.")
+    for r in (10, 20, 30, 40, 50, 60):
+        add(s, "cap", f"r{r}",
+            f"Move the robot straight back along the goal axis to {r} cm from the goal pose.")
+
+    s = ("LATERAL (8)",
+         "Grades wormholes AND loose welds; the 40-60 cm far band is gated, not just small offsets.\n"
+         "    '+' = robot's LEFT. Translate only — keep the goal heading, do not rotate.")
+    for off in (10, 20, 40, 60, -10, -20, -40, -60):
+        side = "LEFT" if off > 0 else "RIGHT"
+        add(s, "cap", f"lat{off:+d}",
+            f"From the goal pose, slide the robot {abs(off)} cm to its {side}, keeping the goal heading.")
+
+    s = ("YAW (7)",
+         "Heading basin at the goal POSITION — rotate in place only. Hand placement within a few\n"
+         "    degrees is fine; for motorized accuracy 's'-skip this arm and run a separate pass "
+         "with --yaw-sweep.")
+    for y in (-30, -20, -10, 0, 10, 20, 30):
+        if y == 0:
+            add(s, "cap", "yaw0", "Back at the exact goal pose (0 deg) — the basin centre.")
+        else:
+            add(s, "cap", f"yaw{y:+d}",
+                f"At the goal position, rotate the robot in place to {y:+d} deg off the goal "
+                "heading (+ = CCW/left).")
+
+    s = ("YAW-AT-DISTANCE (5)",
+         "The under-credited-rotation check (the rotate-to-face maneuver raw L2 missed in 6b):\n"
+         "    heading sweep at 40 cm range.")
+    for y in (-20, -10, 0, 10, 20):
+        place = ("Place the robot at the r40 spot (40 cm back along the goal axis), then rotate"
+                 if y == -20 else "Same r40 spot — rotate")
+        add(s, "cap", f"yawd{y:+d}@r40",
+            f"{place} in place to {y:+d} deg off goal-facing (+ = CCW/left).")
+
+    s = ("GRID (6)",
+         "Coarse polar field. Bearing = angle around the goal off the goal axis (+ = CCW);\n"
+         "    at every grid pose the robot FACES the goal.")
+    for r, b in ((20, 30), (20, -30), (40, 30), (40, -30), (60, 45), (60, -45)):
+        add(s, "cap", f"g_r{r}_b{b:+d}",
+            f"Place the robot {r} cm from the goal at bearing {b:+d} deg off the goal axis, "
+            "heading facing the goal.")
+
+    s = ("FORKS (3 sites x 6)",
+         "Action-ranking test: capture a start pose, then each ~one-chunk move RE-PLACED FROM THAT\n"
+         "    SAME START (one chunk ~ 3 cm / ~10 deg). Sites: a = on-axis near, b = off-axis far,\n"
+         "    c = rug-centre/low-texture (the expected dead zone).")
+    for site, desc in (("a", "~40 cm straight back from the goal on the goal axis, facing the goal"),
+                       ("b", "~60 cm out at a ~45 deg bearing off the goal axis, facing the goal"),
+                       ("c", "middle of the rug / low-texture centre, facing the goal")):
+        add(s, "cap", f"fork_{site}_start",
+            f"Site '{site}' START pose: {desc}. Place the robot there.")
+        for move, mi in (("straight", "move ~3 cm STRAIGHT forward"),
+                         ("pivl", "PIVOT in place ~10 deg LEFT (no translation)"),
+                         ("pivr", "PIVOT in place ~10 deg RIGHT (no translation)"),
+                         ("arcl", "ARC forward-left: ~3 cm forward while turning ~10 deg left"),
+                         ("arcr", "ARC forward-right: ~3 cm forward while turning ~10 deg right")):
+            add(s, "cap", f"fork_{site}_{move}",
+                f"Re-place the robot at the site-'{site}' start pose, then {mi}.")
+    return plan
+
+
+def guided_loop(robot, out, frames_dir, man, idx):
+    plan = build_plan()
+    done = label_counts(man.path)
+    total = len(plan)
+    print(f"\n[guided] Gate-A protocol: {total} steps. At each step: Enter=capture  s=skip  "
+          "b=back/redo  ls=coverage  ?=protocol  q=leave guided mode\n"
+          "[guided] (typing any label instead captures it ad-hoc without advancing; "
+          "already-captured steps are skipped, so re-running resumes)")
+    i, last_section, force = 0, None, False
+    while 0 <= i < len(plan):
+        st = plan[i]
+        if st["section"][0] != last_section:
+            title, note = st["section"]
+            print(f"\n--- {title} ---\n    {note}")
+            last_section = title
+        if not force:
+            if st["kind"] == "goal" and os.path.exists(os.path.join(out, "goal_model.png")):
+                print(f"  [{i + 1}/{total}] goal already set — skipping")
+                i += 1
+                continue
+            if st["kind"] != "goal" and done.get(st["label"], 0) >= st["count"]:
+                print(f"  [{i + 1}/{total}] '{st['label']}' already captured — skipping")
+                i += 1
+                continue
+        force = False
+        what = ("snapshot goal" if st["kind"] == "goal" else
+                f"capture {st['count']}x '{st['label']}'" if st["count"] > 1 else
+                f"capture '{st['label']}'")
+        print(f"\n[{i + 1}/{total}] {st['instr']}")
+        cmd = input(f"[guided] Enter={what}  (s/b/ls/?/q): ").strip()
+        low = cmd.lower()
+        if low == "q":
+            print("[guided] leaving guided mode.")
+            break
+        if low == "?":
+            print(PROTOCOL)
+            force = True
+            continue
+        if low == "ls":
+            coverage(man.path)
+            force = True
+            continue
+        if low == "s":
+            i += 1
+            continue
+        if low == "b":
+            i = max(0, i - 1)
+            force = True
+            continue
+        if cmd:                                            # ad-hoc label; stay on this step
+            arm, _ = parse_label(cmd)
+            if arm is None and input(f"[guided] '{cmd}' doesn't parse to an arm — capture "
+                                     "anyway? [y/N] ").lower() != "y":
+                force = True
+                continue
+            capture(robot, out, frames_dir, man, idx, cmd)
+            idx += 1
+            done[cmd] = done.get(cmd, 0) + 1
+            force = True
+            continue
+        if st["kind"] == "goal":
+            snapshot_goal(robot, out)
+        else:
+            n = max(1, st["count"] - done.get(st["label"], 0))
+            for k in range(n):
+                capture(robot, out, frames_dir, man, idx, st["label"])
+                idx += 1
+                if n > 1:
+                    time.sleep(0.3)
+            done[st["label"]] = done.get(st["label"], 0) + n
+        i += 1
+    coverage(man.path)
+    return idx
+
+
+# ===================== freeform prompt =====================
+
+def freeform_loop(robot, out, frames_dir, man, idx):
+    print("Commands: <label>=capture | n <label> <count>=burst | g=snapshot goal | ?=protocol | ls=coverage | q=quit")
+    while True:
+        cmd = input("[capture] place robot, then command: ").strip()
+        low = cmd.lower()
+        if low == "q":
+            break
+        if low == "?":
+            print(PROTOCOL)
+            continue
+        if low == "ls":
+            coverage(man.path)
+            continue
+        if low == "g":
+            snapshot_goal(robot, out)
+            continue
+        if not cmd:
+            continue
+        burst, label = 1, cmd
+        if low.startswith("n "):
+            parts = cmd.split()
+            label = parts[1] if len(parts) > 1 else "noise"
+            burst = int(parts[2]) if len(parts) > 2 else 8
+        arm, _ = parse_label(label)
+        if arm is None:
+            if input(f"[capture] '{label}' doesn't parse to an arm — capture anyway? [y/N] ").lower() != "y":
+                continue
+        for _ in range(burst):
+            capture(robot, out, frames_dir, man, idx, label)
+            idx += 1
+            if burst > 1:
+                time.sleep(0.3)
+    return idx
+
+
 def main():
     ap = argparse.ArgumentParser(description="GPU-free ground-truth displacement sweep capture")
     ap.add_argument("--ip", default="10.0.0.125")
     ap.add_argument("--id", default="lekiwi")
     ap.add_argument("--out", required=True, help="sweep dir to create/append")
     ap.add_argument("--goal", default=None, help="existing goal image (else snapshot one with 'g')")
+    ap.add_argument("--freeform", action="store_true",
+                    help="skip the guided protocol walkthrough; raw label prompt only")
     # motorized yaw arm (same contract as measure_dist_sweep --yaw-sweep, but GPU-free)
     ap.add_argument("--yaw-sweep", action="store_true", help="robot self-rotates in place + auto-captures")
     ap.add_argument("--yaw-theta", type=float, default=25.0, help="deg/s per step (+ = CCW)")
@@ -160,39 +380,12 @@ def main():
         coverage(man.path)
         return
 
-    # ===================== interactive labeled capture =====================
-    print("Commands: <label>=capture | n <label> <count>=burst | g=snapshot goal | ?=protocol | ls=coverage | q=quit")
+    # ===================== guided / freeform capture =====================
     try:
-        while True:
-            cmd = input("[capture] place robot, then command: ").strip()
-            low = cmd.lower()
-            if low == "q":
-                break
-            if low == "?":
-                print(PROTOCOL); continue
-            if low == "ls":
-                coverage(man.path); continue
-            if low == "g":
-                frame = get_top_frame(robot)
-                save_png(frame, os.path.join(args.out, "goal.png"))
-                save_png(letterbox_rgb(frame), os.path.join(args.out, "goal_model.png"))
-                print("[capture] goal snapshot saved (goal.png + goal_model.png)"); continue
-            if not cmd:
-                continue
-            burst, label = 1, cmd
-            if low.startswith("n "):
-                parts = cmd.split()
-                label = parts[1] if len(parts) > 1 else "noise"
-                burst = int(parts[2]) if len(parts) > 2 else 8
-            arm, _ = parse_label(label)
-            if arm is None:
-                if input(f"[capture] '{label}' doesn't parse to an arm — capture anyway? [y/N] ").lower() != "y":
-                    continue
-            for _ in range(burst):
-                capture(robot, args.out, frames_dir, man, idx, label)
-                idx += 1
-                if burst > 1:
-                    time.sleep(0.3)
+        if not args.freeform:
+            idx = guided_loop(robot, args.out, frames_dir, man, idx)
+            print("\n[guided] protocol pass done — freeform prompt below for extras (q to finish).")
+        idx = freeform_loop(robot, args.out, frames_dir, man, idx)
     finally:
         try:
             robot.disconnect()
