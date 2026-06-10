@@ -223,24 +223,27 @@ def rr_init(args):
         try:
             import rerun.blueprint as rrb
             H = int(getattr(args, "horizon", 3))
-            # COMPACT default = "what the model is doing" in one flat row (flat is known-good for the
-            # web viewer — nested Vertical/row_shares wedged it): what it SEES (observe-time fresh) |
-            # what it INTENDS next (+1 frame with the action arrow) | where it's GOING | how CLOSE.
-            # --viewer-full restores the +2..+H filmstrip (forward-drift / degradation diagnosis);
-            # the .rrd records everything either way.
+            # Default: image row (camera | imagined +1..+H | goal — all the SAME timestep, atomic
+            # post-plan) with the dist trace BELOW. Nested Vertical wedged an older web viewer, so
+            # --viewer-flat keeps the single-row fallback if it recurs.
             views = [rrb.Spatial2DView(origin="model/live", name="camera (now)"),
                      rrb.Spatial2DView(origin="imagined", name="imagined +1 (executes next)")]
-            if getattr(args, "viewer_full", False):
-                for i in range(2, H + 1):
-                    views.append(rrb.Spatial2DView(origin=f"rollout/h{i}",
-                                                   name=f"imagined +{i}" + (" (CEM target)" if i == H else "")))
+            for i in range(2, H + 1):
+                views.append(rrb.Spatial2DView(origin=f"rollout/h{i}",
+                                               name=f"imagined +{i}" + (" (CEM target)" if i == H else "")))
             views.append(rrb.Spatial2DView(origin="model/goal", name="goal"))
-            views.append(rrb.TimeSeriesView(origin="dist_to_goal", name="dist"))
-            bp = rrb.Blueprint(rrb.Horizontal(*views), auto_views=False, collapse_panels=True)
+            if getattr(args, "viewer_flat", False):
+                bp = rrb.Blueprint(rrb.Horizontal(*views), auto_views=False, collapse_panels=True)
+            else:
+                bp = rrb.Blueprint(
+                    rrb.Vertical(rrb.Horizontal(*views),
+                                 rrb.TimeSeriesView(origin="dist_to_goal", name="dist"),
+                                 row_shares=[3, 1]),
+                    auto_views=False, collapse_panels=True)
             for rec in viewer_recs:
                 rr.send_blueprint(bp, recording=rec) if rec is not None else rr.send_blueprint(bp)
-            mode = "full" if getattr(args, "viewer_full", False) else "compact"
-            print(f"[rerun] viewer blueprint ({mode}): camera | imagined +1{'..+%d' % H if mode == 'full' else ''} | goal | dist")
+            mode = "flat" if getattr(args, "viewer_flat", False) else "2-row"
+            print(f"[rerun] viewer blueprint ({mode}): camera | imagined +1..+{H} | goal" + ("" if mode == "flat" else "  /  dist below"))
         except Exception as e:
             print(f"[rerun] blueprint skipped ({e}) — viewer falls back to auto-layout")
     return (rr, streams) if streams else None
@@ -282,14 +285,14 @@ def rr_log_observed(ctx, step, frame):
     if ctx is None:
         return
     rr, streams = ctx
-    from sweep_common import letterbox_rgb
-    model_view = letterbox_rgb(frame)            # the blueprint's "camera (now)" panel = model/live
+    # Display panels (model/live, imagined, goal, dist) are logged ATOMICALLY post-plan so every
+    # visible panel is the SAME timestep (operator decision 2026-06-10). Only the undisplayed raw
+    # `live` entity + the status line land at observe time (phase clarity + timeline truth).
     for rec in streams:
         try:
             _rr_set_time(rr, step, rec)
             rr.log("live", rr.Image(frame), recording=rec)
-            rr.log("model/live", rr.Image(model_view), recording=rec)
-            rr.log("status", rr.TextLog(f"step {step}: observed -> PLANNING (imagined panels still show step {step - 1})"),
+            rr.log("status", rr.TextLog(f"step {step}: observed -> PLANNING (panels show step {step - 1} until the plan lands)"),
                    recording=rec)
         except Exception as e:
             print(f"[rerun] observe-time log failed ({e})")
@@ -401,8 +404,8 @@ def main():
     ap.add_argument("--rerun-web", action="store_true",
                     help="serve a pod-hosted WEB viewer (no rerun install/version-match on the Mac — just forward the ports and open a browser)")
     ap.add_argument("--rerun-web-port", type=int, default=9090, help="HTTP port for --rerun-web (default 9090)")
-    ap.add_argument("--viewer-full", action="store_true",
-                    help="live blueprint shows the +2..+H imagined filmstrip too (default: compact 4-panel)")
+    ap.add_argument("--viewer-flat", action="store_true",
+                    help="single-row blueprint without the dist strip (fallback if the 2-row layout wedges the web viewer)")
     ap.add_argument("--rerun-ws-port", type=int, default=9877, help="WebSocket data port for --rerun-web (default 9877)")
     args = ap.parse_args()
 
