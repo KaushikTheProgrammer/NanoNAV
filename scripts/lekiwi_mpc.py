@@ -223,19 +223,24 @@ def rr_init(args):
         try:
             import rerun.blueprint as rrb
             H = int(getattr(args, "horizon", 3))
-            # FLAT single row (known-good for the web viewer — nested Vertical/row_shares wedged it):
-            # camera (now) | imagined +1 (executes next) | imagined +2..+H (the forward-drift + degradation) | goal.
-            # "imagined" IS the +1 frame (== rollout/h1) and carries the action arrow, so start the rollout fan at +2.
+            # COMPACT default = "what the model is doing" in one flat row (flat is known-good for the
+            # web viewer — nested Vertical/row_shares wedged it): what it SEES (observe-time fresh) |
+            # what it INTENDS next (+1 frame with the action arrow) | where it's GOING | how CLOSE.
+            # --viewer-full restores the +2..+H filmstrip (forward-drift / degradation diagnosis);
+            # the .rrd records everything either way.
             views = [rrb.Spatial2DView(origin="model/live", name="camera (now)"),
                      rrb.Spatial2DView(origin="imagined", name="imagined +1 (executes next)")]
-            for i in range(2, H + 1):
-                views.append(rrb.Spatial2DView(origin=f"rollout/h{i}",
-                                               name=f"imagined +{i}" + (" (CEM target)" if i == H else "")))
+            if getattr(args, "viewer_full", False):
+                for i in range(2, H + 1):
+                    views.append(rrb.Spatial2DView(origin=f"rollout/h{i}",
+                                                   name=f"imagined +{i}" + (" (CEM target)" if i == H else "")))
             views.append(rrb.Spatial2DView(origin="model/goal", name="goal"))
+            views.append(rrb.TimeSeriesView(origin="dist_to_goal", name="dist"))
             bp = rrb.Blueprint(rrb.Horizontal(*views), auto_views=False, collapse_panels=True)
             for rec in viewer_recs:
                 rr.send_blueprint(bp, recording=rec) if rec is not None else rr.send_blueprint(bp)
-            print(f"[rerun] viewer blueprint (flat): camera | imagined +1..+{H} | goal")
+            mode = "full" if getattr(args, "viewer_full", False) else "compact"
+            print(f"[rerun] viewer blueprint ({mode}): camera | imagined +1{'..+%d' % H if mode == 'full' else ''} | goal | dist")
         except Exception as e:
             print(f"[rerun] blueprint skipped ({e}) — viewer falls back to auto-layout")
     return (rr, streams) if streams else None
@@ -396,6 +401,8 @@ def main():
     ap.add_argument("--rerun-web", action="store_true",
                     help="serve a pod-hosted WEB viewer (no rerun install/version-match on the Mac — just forward the ports and open a browser)")
     ap.add_argument("--rerun-web-port", type=int, default=9090, help="HTTP port for --rerun-web (default 9090)")
+    ap.add_argument("--viewer-full", action="store_true",
+                    help="live blueprint shows the +2..+H imagined filmstrip too (default: compact 4-panel)")
     ap.add_argument("--rerun-ws-port", type=int, default=9877, help="WebSocket data port for --rerun-web (default 9877)")
     args = ap.parse_args()
 
