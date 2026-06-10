@@ -1,6 +1,6 @@
 # Semantic WM Retrain (Option C) — Plan & Status
 
-**Status: IN PROGRESS (decided 2026-06-10; C0 probes launched same day).** The decision that
+**Status: IN PROGRESS — C0 COMPLETE (2026-06-10): action branch ALIVE on DINOv2 tokens; winner = x0 + adaln_fuse (RMS 0.182, GT-margin 21.3); additive control reproduced Finding #4 exactly (RMS 0.0028). C0-ext (12k steps) + C0.5 decoder running. See [[experiment-log]] 2026-06-10 C0 RESULT.** The decision that
 supersedes the SD-VAE planning stack's objective problem at the root: **retrain the world model to
 predict frozen DINOv2 patch tokens** (flow-matching / x0 objective) instead of SD-VAE latents under
 diffusion-forcing, so the WM's native rollout space *is* the Gate-A-validated distance space.

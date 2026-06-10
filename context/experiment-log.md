@@ -1003,3 +1003,33 @@ C0a flow+adaln_fuse (the RAE-NWM-shaped bet) · C0b flow+cross_attention · C0c 
 C0d flow+additive (control — expected to reproduce Finding #4). Per-run kill-switch =
 `action_diagnostic` (PASS: action-emb RMS > 0.05 AND GT-action latent-L2 < zero/random baselines);
 verdicts accumulate in `results/c0_probe_summary.md`.
+
+## 2026-06-10 (C0 RESULT) — action branch ALIVE over frozen DINOv2 tokens; injection is the decisive variable; winner = x0 + adaln_fuse; Finding #4 reproduced on demand
+
+The C0 probe matrix (4 × ~3k steps, NanoWM-B/1 over facebook/dinov2-small tokens, latent_scale 2.4,
+existing 50 episodes) is complete and unambiguous. Kill-switch = `action_diagnostic` (PASS: action-emb
+RMS > 0.05 AND GT-action rollout latent-L2 < zero/random-action baselines):
+
+| probe | recipe | action-emb RMS | GT vs zero margin | verdict |
+|---|---|---|---|---|
+| C0a | flow + **adaln_fuse** | 0.207 | 12.4 (216.7 vs 229.1) | **PASS** |
+| C0b | flow + cross_attention | 0.029 | 2.0 (224.9 vs 226.9) | FAIL |
+| **C0c** | **x0 + adaln_fuse** | **0.182** | **21.3 (204.1 vs 225.4)** | **PASS — WINNER** |
+| C0d | flow + additive (control) | **0.0028** | 4.1 | FAIL — **Finding #4 reproduced exactly** |
+
+Reads:
+1. **Finding #4 is the injection, not the latents.** `additive` (the original SD-VAE run's setting)
+   atrophies to RMS 0.0028 — the precise documented signature — while the SAME objective with
+   `adaln_fuse` holds RMS 0.207. The published narrowing (diffusion-forcing ⊗ semantic ⊗ weak
+   injection) is confirmed on our data in one controlled comparison.
+2. **adaln_fuse ≫ cross_attention** here (0.207/0.182 vs 0.029) — the lit's "documented fix" is the
+   weaker arm at our scale; RAE-NWM's AdaLN-gated choice is the right one.
+3. **x0 > flow on action-conditioned rollout accuracy** holding injection fixed (margin 21.3 vs 12.4)
+   — the V-JEPA-2.1-nav-shaped recipe wins at 3k steps. (Both pass; flow stays the fallback.)
+4. SD-VAE's high per-step variance was never necessary — the action branch lives on semantic tokens
+   when the conditioning path is right.
+
+Artifacts: `results/c0_diag_C0*/action_diagnostic.{png,json}`, run dirs `results/*-C0?-dinoB1-*`,
+`results/c0_probe_summary.md`. **Next: C0-ext — x0+adaln_fuse to 12k steps (launched), then the
+Gate C ladder (offline CEM action recovery / weld re-test / nearhamper roll). C0.5 viz decoder
+training in parallel.** See [[semantic-wm-retrain]].
