@@ -76,6 +76,16 @@ de-risks the *recipe*. Far goals still need the graph: DINO cosine is appearance
   `results/c0_diag_C0*/`.
 - wandb: project `nanonav`, run names = model.name (C0a-dinoB1-flow-adalnfuse, …).
 
+## Deferred improvements
+
+- **Viz decoder quality (logged 2026-06-10, operator: not critical).** Current C0.5 decoder is
+  L1+MSE-only -> mean-seeking blur (the SD-VAE comparison is unfair: its decoder is reconstruction-
+  trained with LPIPS+PatchGAN at web scale, and DINO tokens discard appearance by design — ceiling is
+  "scene/layout right, texture approximate"). Upgrade ladder when viz matters: (1) +LPIPS perceptual
+  loss (~5 lines, biggest win), (2) 2-4x decoder capacity + 30-50k steps, (3) light PatchGAN,
+  (4) check RAE-NWM's frozen RAE decoder for dinov2-small at C2, (5) diffusion decoder (sampling
+  kills regression blur; days). Decoder is NEVER in the cost path — purely operator UX.
+
 ## Risks
 
 Finding-#4 repro on all arms (escalation: film injection → aux action-decode loss → V-JEPA 2.1
