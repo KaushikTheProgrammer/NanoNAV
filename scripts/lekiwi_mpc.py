@@ -241,16 +241,21 @@ def rr_init(args):
                                          name="dist (to waypoint)" if graph_mode else "dist")]
                 if graph_mode:
                     ts.append(rrb.TimeSeriesView(origin="graph_dist", name="route dist to GOAL"))
-                bp = rrb.Blueprint(
-                    rrb.Vertical(rrb.Horizontal(*views),
-                                 ts[0] if len(ts) == 1 else rrb.Horizontal(*ts),
-                                 row_shares=[3, 1]),
-                    auto_views=False, collapse_panels=True)
+                rows = [rrb.Horizontal(*views)]
+                shares = [3]
+                if graph_mode:                          # full planned trajectory, src -> goal
+                    rows.append(rrb.Spatial2DView(origin="route", name="planned route -> goal"))
+                    shares.append(1.4)
+                rows.append(ts[0] if len(ts) == 1 else rrb.Horizontal(*ts))
+                shares.append(1)
+                bp = rrb.Blueprint(rrb.Vertical(*rows, row_shares=shares),
+                                   auto_views=False, collapse_panels=True)
             for rec in viewer_recs:
                 rr.send_blueprint(bp, recording=rec) if rec is not None else rr.send_blueprint(bp)
             mode = "flat" if getattr(args, "viewer_flat", False) else "2-row"
-            tgt = "waypoint" if graph_mode else "goal"
-            below = "" if mode == "flat" else ("  /  dist + route-dist below" if graph_mode else "  /  dist below")
+            tgt = "waypoint (indexed)" if graph_mode else "goal"
+            below = "" if mode == "flat" else ("  /  planned route strip  /  dist + route-dist below"
+                                               if graph_mode else "  /  dist below")
             print(f"[rerun] viewer blueprint ({mode}): camera | imagined +1..+{H} | {tgt}{below}")
         except Exception as e:
             print(f"[rerun] blueprint skipped ({e}) — viewer falls back to auto-layout")
@@ -284,6 +289,54 @@ def _action_arrow(rr, vx, theta_deg, img_hw=256):
     return rr.Arrows2D(vectors=[[dx, dy]], origins=[[bx, by]],
                        labels=[f"vx={vx:+.3f} m/s  θ={theta_deg:+.1f}°/s"],
                        colors=[[255, 230, 0]], radii=[2.0])
+
+
+def _banner(img, text, color=(255, 210, 80)):
+    """Annotated DISPLAY copy (never fed to the planner): black strip + label on top."""
+    from PIL import Image, ImageDraw
+    im = Image.fromarray(np.ascontiguousarray(img))
+    dr = ImageDraw.Draw(im)
+    dr.rectangle([0, 0, im.width, 16], fill=(0, 0, 0))
+    dr.text((4, 2), text, fill=color)
+    return np.asarray(im)
+
+
+def route_strip(nav, path, goal_rgb, max_tiles=12):
+    """The ENTIRE planned waypoint trajectory as one wide image (viewer 'route' row):
+    subsampled route-node frames src+1..goal-node, then the real goal image. Labels carry
+    the waypoint index within the current route."""
+    from PIL import Image, ImageDraw
+    nodes = path[1:]                                   # src itself is the camera panel
+    if not nodes:
+        return None
+    sel = (np.unique(np.linspace(0, len(nodes) - 1, max_tiles).astype(int))
+           if len(nodes) > max_tiles else np.arange(len(nodes)))
+    tw, th = 160, 120
+    n = len(sel) + 1
+    canvas = Image.new("RGB", (n * (tw + 2) + 2, th + 18), (20, 20, 20))
+    dr = ImageDraw.Draw(canvas)
+    for c, k in enumerate(sel):
+        nid = int(nodes[k])
+        canvas.paste(Image.fromarray(nav.node_frame(nid)).resize((tw, th)), (2 + c * (tw + 2), 2))
+        dr.text((4 + c * (tw + 2), th + 4), f"wp {k + 1}/{len(nodes)}", fill=(160, 220, 255))
+    canvas.paste(Image.fromarray(np.ascontiguousarray(goal_rgb)).resize((tw, th)),
+                 (2 + len(sel) * (tw + 2), 2))
+    dr.text((4 + len(sel) * (tw + 2), th + 4), "GOAL image", fill=(255, 180, 120))
+    return np.asarray(canvas)
+
+
+def rr_log_route(ctx, step, strip):
+    """Log the planned-route strip AT WAYPOINT-COMPUTE TIME (pre-plan) — the operator sees the
+    whole trajectory before the first 7 s plan even finishes."""
+    if ctx is None or strip is None:
+        return
+    rr, streams = ctx
+    for rec in streams:
+        try:
+            _rr_set_time(rr, step, rec)
+            rr.log("route", rr.Image(strip), recording=rec)
+        except Exception as e:
+            print(f"[rerun] route log failed ({e})")
 
 
 def rr_log_observed(ctx, step, frame):
@@ -320,7 +373,7 @@ def rr_log(ctx, step, frame, goal, res: PlanResult, executed, graph=None):
     if graph is not None:
         status += (f" | graph: {graph['status']} hops={graph.get('hops_left', '-')} "
                    f"graph_dist={graph['graph_dist']:.3f}"
-                   + (f" wp=ep{graph['wp_ep']}ck{graph['wp_ck']}"
+                   + (f" wp {graph['wp_path_idx']}/{graph['hops_left']} (ep{graph['wp_ep']}ck{graph['wp_ck']})"
                       if graph["status"] == "WAYPOINT" else ""))
     for rec in streams:                                  # tee to every active sink (file and/or live)
         try:
@@ -331,7 +384,13 @@ def rr_log(ctx, step, frame, goal, res: PlanResult, executed, graph=None):
             if res.model_live_rgb is not None:
                 rr.log("model/live", rr.Image(res.model_live_rgb), recording=rec)
             if res.model_goal_rgb is not None:
-                rr.log("model/goal", rr.Image(res.model_goal_rgb), recording=rec)
+                gimg = res.model_goal_rgb
+                if graph is not None:                  # mark WHAT the target panel is showing
+                    gimg = (_banner(gimg, f"WAYPOINT {graph['wp_path_idx']}/{graph['hops_left']}"
+                                          f"  node {graph['wp']} (ep{graph['wp_ep']} ck{graph['wp_ck']})")
+                            if graph["status"] == "WAYPOINT"
+                            else _banner(gimg, f"FINAL GOAL ({graph['status'].lower()})", (120, 255, 140)))
+                rr.log("model/goal", rr.Image(gimg), recording=rec)
             rr.log("status", rr.TextLog(status), recording=rec)
             rr.log("dist_to_goal", Scalar(res.dist_to_goal), recording=rec)
             if graph is not None and np.isfinite(graph.get("graph_dist", np.inf)):
@@ -526,8 +585,13 @@ def main():
             print(f"  graph: {ginfo['status']}  src={ginfo['src']} (ep{ginfo['src_ep']} ck{ginfo['src_ck']}) "
                   f"d_loc={ginfo['d_loc']:.3f}  graph_dist={ginfo['graph_dist']:.3f}  "
                   f"hops={ginfo.get('hops_left', '-')}"
-                  + (f"  -> wp {ginfo['wp']} (ep{ginfo['wp_ep']} ck{ginfo['wp_ck']})"
+                  + (f"  -> wp {ginfo['wp_path_idx']}/{ginfo['hops_left']} node {ginfo['wp']} "
+                     f"(ep{ginfo['wp_ep']} ck{ginfo['wp_ck']})"
                      if ginfo["status"] == "WAYPOINT" else "  -> REAL GOAL IMAGE"))
+            # the whole planned trajectory, logged BEFORE the 7 s plan starts (step 0 = the
+            # "view the route beforehand" panel; later steps show it shrinking as hops burn off)
+            if ginfo.get("path"):
+                rr_log_route(tel, step, route_strip(nav, ginfo["path"], goal))
         t0 = time.monotonic()
         res = planner.plan(frame, plan_goal)
         plan_ms = (time.monotonic() - t0) * 1000.0

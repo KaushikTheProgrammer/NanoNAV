@@ -149,6 +149,7 @@ class GraphNav:
         while path[-1] != self.goal_node:
             path.append(int(self.next_hop[path[-1]]))
         info["hops_left"] = len(path) - 1
+        info["path"] = path                  # full planned node sequence src..goal (viewer route strip)
         if len(path) <= 1 or self.dist_to_goal[s] < self.tau:
             info["status"] = "ENDGAME"
             return None, None, info
@@ -162,7 +163,8 @@ class GraphNav:
                 break
         info.update(status="WAYPOINT", wp=wp, wp_d_live=float(d_all[wp]),
                     wp_ep=int(self.episode[wp]), wp_ck=int(self.chunk_idx[wp]),
-                    wp_graph_dist=float(self.dist_to_goal[wp]))
+                    wp_graph_dist=float(self.dist_to_goal[wp]),
+                    wp_path_idx=path.index(wp))   # which waypoint along the current route (1-based hop)
         return wp, self.node_frame(wp), info
 
 
