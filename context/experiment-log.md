@@ -1265,3 +1265,40 @@ existing endgame slack, recoverable by replan + legal rotation). All other route
 final-cm placement question stays with the C1 floor work and the visual-servo endgame idea
 (which can use reverse — it bypasses the WM, so VX_MIN=0 doesn't apply). C2 recollection with
 reverse segments turns temporal edges bidirectional where reverse was actually driven.
+
+## 2026-06-11 (evening) — FIRST ON-ROBOT GRAPH A/B — INCOMPLETE, resume tomorrow
+
+Goal: nearhamper1 from a far start; run 1 = flat semantic MPC, run 2 = `--graph`. **Test cut short
+by operator (pod shutdown); both `.rrd`s saved** (`mpc_semantic_nograph_nearhamper2.rrd` 16 steps,
+`mpc_semantic_graph_nearhamper.rrd` 92 steps).
+
+**Run 1 (no graph) — baseline confirmed the far-field failure:** dist pinned 0.45–0.50 for all 16
+steps, theta oscillating ±20–26°/s — plateau wandering, no descent. Exactly the behavior the graph
+exists to fix.
+
+**Run 2 (--graph) — partial:** goal → node 705 (52-hop route, graph_dist 7.90). Real progress:
+**graph_dist 7.90 → 7.07 (52 → 47 hops) over ~90 steps (~11 min)**, full-clamp segments, viewer
+showed route strip + indexed waypoint banner + monotone route-dist trace working as designed.
+**Then a STALL:** 7+ consecutive replans localized to the same node (src 4087 ep45 ck37, wp 2/47 =
+node 4089 two chunks ahead, dist-to-waypoint pinned 0.29 ≈ d_loc 0.245 + ~1 hop). Candidates, in
+order of prior: (a) localization stickiness under the ~+0.23 cross-session offset (live frame
+between nodes keeps snapping to 4087); (b) CEM gradient too weak at 0.29-to-waypoint (the offset
+eats the basin — cf. the C1 floor question); (c) a bad weld/route segment near ep45 ck37–39;
+(d) physical obstruction (operator to confirm from the room). **First diagnostics tomorrow:**
+review the .rrd around steps 85–92 (live vs waypoint panels side by side), check commanded vs
+observed motion, try `--graph-lookahead 0.3` (waypoint farther ahead = stronger gradient through
+the offset), and the fresh-goal/cross-session-offset test (C1) which this stall may share a root
+cause with.
+
+**Ops traps found+fixed this session:**
+- **Wrong-camera suspicion after the day's first run** → Pi reboot + probe protocol: `top` verified
+  correct post-reboot (`results/cam_probe5/`). Always probe after Pi restarts (USB swap trap).
+- **Zombie MPC streamed velocity through the tunnel** after a wrapper-level kill — survived the Pi
+  reboot (ZMQ re-attach) = phantom motion. Stop procedure: SIGINT the **python** PID (not the nohup
+  wrapper), verify `ss` shows 9090/9877 freed + pgrep sweep empty.
+- **Pod restart → new RunPod IP/SSH port** → Mac `tunnel_up.sh` must be re-pointed; MPC connects to
+  `--ip 127.0.0.1` (reverse tunnel), NOT the Pi LAN IP.
+
+**Resume-tomorrow checklist:** (1) Pi host with `--connection_time_s 7200`; (2) Mac tunnel to the
+pod's NEW address (+ `-L 9090/-L 9877` for the viewer); (3) `--ip 127.0.0.1`; (4) camera probe;
+(5) re-place bot at the same far start for run 2 retry; commands in this entry's runs are exact.
