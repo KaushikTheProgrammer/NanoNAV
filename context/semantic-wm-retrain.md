@@ -105,6 +105,25 @@ de-risks the *recipe*. Far goals still need the graph: DINO cosine is appearance
   negative vx, and the CEM sampling range opened up. Cheap to capture, high value for
   close-quarters goal approach. Also pairs with the asymmetry question in
   [[learned-distance-metric]] (forward vs U-turn cost).
+- **Visual-servoing endgame for fine final placement (idea logged 2026-06-10).** Once the planner
+  gets near the goal (`d(z0,zg)` under a handoff threshold ≈ the basin floor), switch to a
+  **keypoint-based visual-servoing mode**: match keypoints between the live frame and the goal
+  image (classic ORB/LightGlue, or DINOv2 patch-feature correspondences — the tokens are already
+  computed for the cost), then drive the image error to zero with a classic IBVS control law
+  emitting **(x.vel, y.vel, theta.vel)** directly. Three properties make this attractive:
+  (1) it runs **below the learned stack** — no WM rollout, no CEM, just image error → velocity —
+  so it can use the **strafe DOF (`y.vel`)** that was deliberately dropped from the WM action
+  space, and small reverse corrections, without any retraining; (2) it **decouples final precision
+  from the token-cosine floor** — the open reach-thresh problem (~0.2 floor on cross-session
+  goals) stops mattering for *placement* because termination becomes "pixel error small", which
+  also absorbs the observed within-floor position slack (the "slightly left" arrivals); (3) it
+  completes a clean three-tier architecture: **graph (room scale) → CEM+WM (basin, ~10–20 cm) →
+  servo (the last few cm/degrees)** — each layer handing off to one tuned for a finer regime.
+  Risks/needs: keypoint-poor views (carpet-facing goals), cross-session lighting robustness
+  (matchers are typically more robust than raw cosine), a rough depth/homography assumption for
+  the interaction matrix, and gain tuning on the real base. Lit anchor: ViT-VS (arXiv:2503.04545,
+  ViT-feature visual servoing — already in the [[learned-distance-metric]] refs). Natural slot:
+  after C1's reach-thresh resolution; independent of C2/C3 (pure runtime addition).
 
 ## Risks
 

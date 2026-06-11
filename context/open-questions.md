@@ -226,6 +226,13 @@ answer). **Closest published blueprint = RAE-NWM** (recipe, hyperparameters, tok
 single-env 1K-trajectory scale data point): see [[learned-distance-metric]] "If the retrain switches
 latent space".
 
+### Visual-servoing endgame (fine final placement)
+After the planner parks the robot near the goal, hand off to keypoint-based visual servoing
+(live-frame ↔ goal-image correspondences → IBVS control law → direct `x/y/theta.vel`, including the
+strafe DOF the WM never sees) for the last few cm/degrees. Decouples final precision from the
+token-cosine reach-thresh floor; completes the graph → CEM → servo three-tier stack. Full notes:
+[[semantic-wm-retrain]] "Future avenues".
+
 ### Pattern B (goal-conditioned video generation + IDM)
 Same data, same encoder. Replace action conditioning with goal-image conditioning. Train separate IDM on action-labeled data. Compare Pattern A vs Pattern B on same scene. Analytic optical-flow IDM baseline (AVDC-style, zero labels).
 
