@@ -1302,3 +1302,74 @@ cause with.
 **Resume-tomorrow checklist:** (1) Pi host with `--connection_time_s 7200`; (2) Mac tunnel to the
 pod's NEW address (+ `-L 9090/-L 9877` for the viewer); (3) `--ip 127.0.0.1`; (4) camera probe;
 (5) re-place bot at the same far start for run 2 retry; commands in this entry's runs are exact.
+
+---
+
+## 2026-06-12 — C3 GRAPH NAV: FIRST FULL ON-ROBOT SUCCESS (REACHED) + the three fixes that got it there
+
+**Headline: `--graph` run REACHED nearpurifier — dist 0.08 < reach-thresh 0.08 after 129 steps**
+(`results/mpc_semantic_graph_nearpurifier4.rrd`, 542 MB): 40-hop route from node 214 (ep2 ck34),
+localization `[tracked]` essentially throughout (one clean same-thread reroute), hops burned
+40→12→11→2, ENDGAME at step 116 (graph_dist < τ → real goal image), then CEM closed 0.30→0.08 in
+13 endgame steps. First time the full pipeline (token graph → directed certified welds → sticky
+localization → waypoint chain → endgame) worked end-to-end on the robot.
+
+**A/B basin bracket (baseline runs, no graph):**
+- nearpurifier from start-dist 0.35: **arrived without the graph** — 0.35→0.10 in 52 steps, classic
+  endgame signature (x.vel→0, micro heading corrections), floor ~0.10 (cross-session offset;
+  stopped above the 0.08 thresh). `mpc_semantic_nograph_nearpurifier.rrd`.
+- nearhamper from start-dist 0.45–0.47: plateau-wander again (16-step replication of yesterday).
+- ⇒ live CEM basin edge is between 0.35 (in) and 0.45 (out) — matches the offline calibration below.
+
+**Fix 1 — calibrated waypoint spacing (e3f1e49).** Offline gradient-basin measurement (4,400
+within-episode pairs): one-step descent reliability toward a target k chunks ahead = 95.8% (k=2),
+94.3% (k=3), 90.9% (k=4), 75.8% (k=10), ~60% (k=20, noise). Route-progress is ~0.092/chunk, so
+lookahead 2τ ≈ 4 chunks ≈ the 90% point → new default. ALSO: soft-weld +0.15 penalties no longer
+count as lookahead "progress" (they're routing costs, not distance — one soft weld ate 40% of the
+budget and pinned waypoints 1 hop ahead). Offline waypoint counts: purifier 51→29, hamper 9→5.
+
+**Fix 2 — localization hysteresis + route stickiness (b63c64c).** First graph purifier run (32
+steps, stopped): goal node 823 verified CORRECT (frame = the purifier approach), but per-replan
+global-argmin localization flip-flopped across episode threads (ep18→27→23→27→29 at d_loc
+0.22–0.28), the route re-rolled every replan (65/66/67/73 hops), waypoints chased unrelated
+targets, graph_dist ROSE 10.26→11.67, theta oscillated ±28°/s. Since the next-hop tree is fixed
+per goal, ALL route instability is src jumps ⇒ track src along the committed path: localize within
+the first 12 path nodes; a global match must beat the on-path match by 0.03 for 2 consecutive
+replans before a reroute is accepted. Offline alias replay (the run's actual lookalike nodes):
+holds the thread, graph_dist monotone.
+
+**Fix 3 — waypoint floor (operator call: "more difference between live frame and target").**
+wp = at least path[3] regardless of budget → CEM gets a visibly different target frame and commits
+(decisive turns instead of timid near-zero corrections). This was the config that REACHED.
+Sparsified further post-success: **floor 3→5 hops + lookahead 2.5τ (a773ef7) — NOT yet tested
+on-robot** (offline: purifier 9, neardesk 12, hamper 2 waypoints).
+
+**neardesk graph run (147 steps, stopped; pre-sparsify config):** 59-hop route, tracked
+throughout, ENDGAME at ~step 115, but endgame HOVERED at dist ~0.30 for 35 steps without crossing
+0.08 (`mpc_semantic_graph_neardesk.rrd`). Purifier closed to 0.08; neardesk didn't ⇒ endgame
+convergence is goal-image dependent (cross-session offset + view match) — same C1 floor question.
+Watch: if endgame hovers ≥0.3, consider re-snapshotting the goal or reach-thresh 0.1–0.15.
+
+**Viewer (addce3e):** route strip + goal banner now show the ACTUAL subgoal sequence —
+`GraphNav._pick()` (shared selection rule) + `subgoal_chain()` replayed down the committed path;
+strip tiles = exactly the frames CEM will be handed (`subgoal j/M (hop k/N)` + GOAL image); banner
+`SUBGOAL 1/M  hop k/N`. Offline: live pick sequence == chain prefix on both demo routes.
+
+**Ops — the evening blocker (UNRESOLVED):** `connection_time_s` is NOT a CLI flag —
+`lekiwi_host.main()` hardcodes `LeKiwiHostConfig()` (default 30 s). Fix = edit the dataclass
+default on the Pi: `sed -i 's/connection_time_s: int = .*/connection_time_s: int = 86400/'
+$(<host-python> -c "import lerobot.robots.lekiwi.config_lekiwi as m; print(m.__file__)")` — but
+the evening relaunches still died at connect (engine loads ~90 s; a 30 s host window is always
+dead by then), so the sed likely hit a different install than the host's venv. **Verify on the Pi
+with the host's exact python:** `<host-python> -c "from lerobot.robots.lekiwi.config_lekiwi import
+LeKiwiHostConfig; print(LeKiwiHostConfig().connection_time_s)"` must print 86400 before relaunch.
+
+**Resume checklist (next session):** (1) verify host window prints 86400 (above) + run host in
+tmux; (2) tunnel up (`-L 9090 -L 9877` too); (3) relaunch neardesk graph run = first on-robot test
+of the 5-hop sparse subgoals + subgoal-strip viewer (exact command in `mpc_graph_neardesk2.log`
+header / this entry's sibling); (4) demo set for the write-up: nearhamper-from-far A/B (strongest
+story: baseline provably fails on tape), 2nd purifier from a new corner, neardesk. **Project
+direction (operator): write up as website + LinkedIn post from current data; full-room C2
+recollect is the published next chapter, NOT a blocker. Inference-speedup plan (7.3 s→~1 s:
+bf16+flash → compile/CUDA-graphs → CEM warm-start → DDIM/pyramid; TRT assessed not-worth-it for
+the WM, DINO-TRT only if MPC goes continuous) saved in the plan file for later.**
