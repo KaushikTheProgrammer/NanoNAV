@@ -301,24 +301,26 @@ def _banner(img, text, color=(255, 210, 80)):
     return np.asarray(im)
 
 
-def route_strip(nav, path, goal_rgb, max_tiles=12):
-    """The ENTIRE planned waypoint trajectory as one wide image (viewer 'route' row):
-    subsampled route-node frames src+1..goal-node, then the real goal image. Labels carry
-    the waypoint index within the current route."""
+def route_strip(nav, ginfo, goal_rgb, max_tiles=12):
+    """The planned SUBGOAL sequence as one wide image (viewer 'route' row): the actual
+    frames CEM will be handed, in order, then the real goal image. Labels carry the
+    subgoal index and the node's hop position along the full route."""
     from PIL import Image, ImageDraw
-    nodes = path[1:]                                   # src itself is the camera panel
-    if not nodes:
-        return None
-    sel = (np.unique(np.linspace(0, len(nodes) - 1, max_tiles).astype(int))
-           if len(nodes) > max_tiles else np.arange(len(nodes)))
+    subs = ginfo.get("subgoals") or []
+    path = ginfo.get("path") or []
+    hop = {n: k for k, n in enumerate(path)}
+    sel = (np.unique(np.linspace(0, len(subs) - 1, max_tiles).astype(int))
+           if len(subs) > max_tiles else np.arange(len(subs)))
     tw, th = 160, 120
     n = len(sel) + 1
     canvas = Image.new("RGB", (n * (tw + 2) + 2, th + 18), (20, 20, 20))
     dr = ImageDraw.Draw(canvas)
     for c, k in enumerate(sel):
-        nid = int(nodes[k])
+        nid = int(subs[int(k)])
         canvas.paste(Image.fromarray(nav.node_frame(nid)).resize((tw, th)), (2 + c * (tw + 2), 2))
-        dr.text((4 + c * (tw + 2), th + 4), f"wp {k + 1}/{len(nodes)}", fill=(160, 220, 255))
+        dr.text((4 + c * (tw + 2), th + 4),
+                f"subgoal {int(k) + 1}/{len(subs)} (hop {hop.get(nid, '?')}/{len(path) - 1})",
+                fill=(160, 220, 255))
     canvas.paste(Image.fromarray(np.ascontiguousarray(goal_rgb)).resize((tw, th)),
                  (2 + len(sel) * (tw + 2), 2))
     dr.text((4 + len(sel) * (tw + 2), th + 4), "GOAL image", fill=(255, 180, 120))
@@ -372,8 +374,8 @@ def rr_log(ctx, step, frame, goal, res: PlanResult, executed, graph=None):
     status = f"step {step}: plan ready -> executing"
     if graph is not None:
         status += (f" | graph: {graph['status']} hops={graph.get('hops_left', '-')} "
-                   f"graph_dist={graph['graph_dist']:.3f}"
-                   + (f" wp {graph['wp_path_idx']}/{graph['hops_left']} (ep{graph['wp_ep']}ck{graph['wp_ck']})"
+                   f"subgoals={graph.get('n_subgoals', '-')} graph_dist={graph['graph_dist']:.3f}"
+                   + (f" wp hop {graph['wp_path_idx']}/{graph['hops_left']} (ep{graph['wp_ep']}ck{graph['wp_ck']})"
                       if graph["status"] == "WAYPOINT" else ""))
     for rec in streams:                                  # tee to every active sink (file and/or live)
         try:
@@ -386,8 +388,9 @@ def rr_log(ctx, step, frame, goal, res: PlanResult, executed, graph=None):
             if res.model_goal_rgb is not None:
                 gimg = res.model_goal_rgb
                 if graph is not None:                  # mark WHAT the target panel is showing
-                    gimg = (_banner(gimg, f"WAYPOINT {graph['wp_path_idx']}/{graph['hops_left']}"
-                                          f"  node {graph['wp']} (ep{graph['wp_ep']} ck{graph['wp_ck']})")
+                    gimg = (_banner(gimg, f"SUBGOAL 1/{graph['n_subgoals']}  hop {graph['wp_path_idx']}"
+                                          f"/{graph['hops_left']}  node {graph['wp']} "
+                                          f"(ep{graph['wp_ep']} ck{graph['wp_ck']})")
                             if graph["status"] == "WAYPOINT"
                             else _banner(gimg, f"FINAL GOAL ({graph['status'].lower()})", (120, 255, 140)))
                 rr.log("model/goal", rr.Image(gimg), recording=rec)
@@ -593,7 +596,7 @@ def main():
             # the whole planned trajectory, logged BEFORE the 7 s plan starts (step 0 = the
             # "view the route beforehand" panel; later steps show it shrinking as hops burn off)
             if ginfo.get("path"):
-                rr_log_route(tel, step, route_strip(nav, ginfo["path"], goal))
+                rr_log_route(tel, step, route_strip(nav, ginfo, goal))
         t0 = time.monotonic()
         res = planner.plan(frame, plan_goal)
         plan_ms = (time.monotonic() - t0) * 1000.0

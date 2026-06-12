@@ -150,6 +150,35 @@ class GraphNav:
         from PIL import Image
         return np.asarray(Image.open(self.frames_dir / f"{i:05d}.jpg"))
 
+    # ---- waypoint-selection rule (shared by waypoint() and subgoal_chain()) ----
+    def _pick(self, path, lookahead):
+        """Selection rule on a path (src first) -> path index of the pick (>= 1):
+        furthest node within `lookahead` of RAW route progress, floored at min_wp_hops,
+        never past the goal node."""
+        m_pick = 1
+        progress = self.w_raw.get((path[0], path[1]), 0.0)
+        for m in range(2, len(path)):
+            if path[m] == self.goal_node:
+                break
+            progress += self.w_raw.get((path[m - 1], path[m]), 0.0)
+            if progress < lookahead or m <= self.min_wp_hops:
+                m_pick = m
+            else:
+                break
+        return m_pick
+
+    def subgoal_chain(self, path, lookahead=None):
+        """All future waypoint picks down this path, in order (excludes the goal node —
+        the viewer appends the real goal image after these)."""
+        lookahead = lookahead or 2.5 * self.tau
+        out, i = [], 0
+        while i < len(path) - 1 and path[i] != self.goal_node:
+            i += self._pick(path[i:], lookahead)
+            if path[i] == self.goal_node:
+                break
+            out.append(int(path[i]))
+        return out
+
     # ---- the per-replan call ----
     def waypoint(self, live_lat, lookahead=None):
         """-> (node_id, frame_rgb, info) or (None, None, info) = ENDGAME (use the real goal image).
@@ -183,19 +212,12 @@ class GraphNav:
         self._path = path                         # commit (tracked src -> identical route suffix)
         info["hops_left"] = len(path) - 1
         info["path"] = path                  # full planned node sequence src..goal (viewer route strip)
+        info["subgoals"] = self.subgoal_chain(path, lookahead)   # the frames CEM will actually target
+        info["n_subgoals"] = len(info["subgoals"])
         if len(path) <= 1 or self.dist_to_goal[s] < self.tau:
             info["status"] = "ENDGAME"
             return None, None, info
-        wp = path[1]
-        progress = self.w_raw.get((path[0], path[1]), 0.0)
-        for m, n in enumerate(path[2:], start=2):   # furthest path node within the lookahead of
-            if n == self.goal_node:                 # RAW route progress (soft-weld penalties are
-                break                               # routing costs, not physical distance)
-            progress += self.w_raw.get((path[m - 1], n), 0.0)
-            if progress < lookahead or m <= self.min_wp_hops:
-                wp = n
-            else:
-                break
+        wp = path[self._pick(path, lookahead)]   # == subgoals[0] when the chain is non-empty
         info.update(status="WAYPOINT", wp=wp, wp_d_live=float(d_all[wp]),
                     wp_ep=int(self.episode[wp]), wp_ck=int(self.chunk_idx[wp]),
                     wp_graph_dist=float(self.dist_to_goal[wp]),
