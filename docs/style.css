@@ -46,6 +46,13 @@ header.masthead h1 {
   letter-spacing: -0.01em;
 }
 
+header.masthead h1 a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 2px solid var(--faint);
+}
+header.masthead h1 a:hover { border-bottom-color: var(--accent); }
+
 header.masthead .subtitle {
   font-size: 1.25rem;
   color: var(--muted);
@@ -120,7 +127,60 @@ nav.toc .label {
   display: block;
   margin-bottom: 0.5rem;
 }
+nav.toc .toc-intro { margin: 0 0 0.4rem; padding-left: 0.05rem; }
+nav.toc .toc-intro a { color: var(--text); }
+nav.toc .toc-intro a:hover { color: var(--accent); }
 nav.toc ol { margin: 0; padding-left: 1.2rem; }
+
+/* ---- sticky left-rail TOC with scroll-spy (wide screens only) ---- */
+.toc-rail { display: none; }
+
+@media (min-width: 80rem) {
+  /* on wide screens the rail replaces the inline TOC */
+  nav.toc { display: none; }
+
+  .toc-rail {
+    display: block;
+    position: fixed;
+    top: 5.5rem;
+    left: calc(50% - 37rem);
+    width: 13rem;
+    max-height: calc(100vh - 8rem);
+    overflow-y: auto;
+    font-family: var(--sans);
+    font-size: 0.8rem;
+    line-height: 1.35;
+    padding-right: 0.4rem;
+  }
+  .toc-rail .label {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.68rem;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 0.6rem;
+  }
+  .toc-rail .toc-intro { margin: 0 0 0.5rem; }
+  .toc-rail ol { margin: 0; padding-left: 1.3rem; }
+  .toc-rail li { margin: 0.32rem 0; }
+  .toc-rail li::marker { color: var(--faint); }
+  .toc-rail a {
+    color: var(--muted);
+    text-decoration: none;
+    border-left: 2px solid transparent;
+    margin-left: -0.9rem;
+    padding-left: 0.7rem;
+    display: inline-block;
+    transition: color 0.12s ease;
+  }
+  .toc-rail a:hover { color: var(--text); }
+  .toc-rail a.active {
+    color: var(--accent);
+    font-weight: 650;
+    border-left-color: var(--accent);
+  }
+}
 nav.toc li { margin: 0.15rem 0; }
 nav.toc a { color: var(--text); }
 nav.toc a:hover { color: var(--accent); }
@@ -171,6 +231,7 @@ figcaption b { color: var(--text); }
   position: absolute; inset: 0;
   width: 100%; height: 100%;
   border: 0;
+  object-fit: cover;
 }
 .hero .placeholder {
   position: absolute; inset: 0;
@@ -228,6 +289,34 @@ th {
   padding: 0.2rem 0 0.2rem 1rem;
   margin: 1.4rem 0;
 }
+
+/* ---- field-note / reader-question aside ---- */
+aside.fieldnote {
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  background: var(--code-bg);
+  border-left: 3px solid var(--muted);
+  padding: 0.9rem 1.2rem;
+  margin: 1.8rem 0;
+  border-radius: 0 6px 6px 0;
+}
+aside.fieldnote p { margin: 0; }
+aside.fieldnote p + p { margin-top: 0.7rem; }
+
+/* ---- pending-asset placeholder (figure not yet produced) ---- */
+.pending {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  color: var(--muted);
+  background: repeating-linear-gradient(45deg, #fafaf8, #fafaf8 10px, #f2f2ee 10px, #f2f2ee 20px);
+  border: 1px dashed #c9c9c2;
+  border-radius: 6px;
+  padding: 1.4rem 1.1rem;
+  margin: 2rem 0;
+  text-align: center;
+}
+.pending b { color: var(--text); }
 
 /* draft scaffolding markers — delete before publishing */
 .draft {

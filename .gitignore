@@ -9,3 +9,11 @@ __pycache__/
 
 # Local results
 /results/
+
+# macOS junk
+.DS_Store
+
+# Large media masters / recordings (web-optimized derivatives are committed;
+# raw recordings are published as GitHub Release assets — see context/RECORDINGS.md)
+*.rrd
+docs/assets/plan-demo-source.mov
