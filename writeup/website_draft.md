@@ -50,9 +50,7 @@ The Nano World Models project evaluates across three domains: simple control env
 
 The classical way to make a robot go somewhere is a stack: build a map (SLAM), localize yourself in it, plan a path, follow the path. It works, and it is heavy — it wants depth sensors, careful calibration, and a metric model of the world maintained over time.
 
-The bet here is that a world model trained on raw experience can replace that entire stack *for one specific task*. The task is deliberately stark: the robot gets its **current camera frame** and a **target image**, and it outputs **body-frame velocities**. No pre-built map, no external localization or depth sensor, no GPS, no reward function, no task demonstrations. The goal is specified at *inference* time, by an image, and the model has never been told that goal exists.
-
-The interesting version of that bet is the budget. **50 tele-operated episodes. ~25 minutes of driving. One room. One overhead camera. One rented cloud GPU, hours not weeks.** Small data isn't a compromise I'm apologizing for — it's the point. The question is how far the planning-world-model recipe stretches when you starve it.
+The bet here is that a world model trained on raw experience can replace that entire stack. The task is deliberately stark: the robot gets its **current camera frame** and a **target image**, and it outputs **body-frame velocities**. No pre-built map, no external localization or depth sensor, no GPS, no reward function, no task demonstrations. The goal is specified at *inference* time, by an image, and the model has never been told that goal exists.
 
 [TODO: optionally a one-line spec box here — camera, 2-D action (forward velocity + yaw rate), goal-as-photo.]
 
@@ -60,9 +58,7 @@ The interesting version of that bet is the budget. **50 tele-operated episodes. 
 
 ## 2 · The robot and the data
 
-The **LeKiwi** is an open-source mobile manipulator from the LeRobot ecosystem: a low-cost SO-ARM-style arm bolted onto a **three-omniwheel "kiwi drive" base**, driven by an onboard **Raspberry Pi** and a handful of inexpensive serial-bus servos. The whole platform is deliberately accessible — a complete build runs a few hundred dollars — which is exactly why it fits the "do this small" spirit of the project. For navigation I use only the base; the arm stays parked in a fixed pose throughout, where it doubles as the mast for the camera.
-
-The one modification that really matters is that camera. The stock LeKiwi looks out from a low front-facing webcam; I swapped in wider-angle USB cameras and, crucially, added a **third camera on a custom mount that looks down over the robot from above at roughly a 55° tilt**. That overhead vantage captures four depth zones at once — the robot's own body, the near floor, mid-room objects, and the far walls — and because the robot's body sits fixed in the bottom of every frame, it gives the world model a constant ego-motion reference to read its own movement against. Everything downstream — the world model, the distance metric, the graph — is built on what this one camera sees.
+The **LeKiwi** is an open-source mobile manipulator from the LeRobot ecosystem: a low-cost SO-ARM-style arm bolted onto a **three-omniwheel "kiwi drive" base**, driven by an onboard **Raspberry Pi** and a handful of inexpensive serial-bus servos. For navigation I use only the base; the arm stays parked in a fixed pose throughout. The stock LeKiwi looks out from a low front-facing webcam; I swapped in wider-angle USB cameras. I also added a **third overhead spatial camera on a custom mount that looks down over the robot from above at roughly a 55° tilt**. That overhead vantage captures four depth zones at once: the robot's own body, the near floor, mid-room objects, and the far walls.
 
 *Hardware at a glance: LeKiwi (LeRobot) · holonomic 3-omniwheel base · SO-ARM arm, parked · Raspberry Pi host · low-cost serial-bus servos · overhead USB camera on a custom ~55° mount. [TODO: confirm exact Pi model / servo model / camera model and how the mount was fabricated.]*
 
@@ -71,9 +67,9 @@ The one modification that really matters is that camera. The stock LeKiwi looks 
 
 ### Collecting the data
 
-The dataset collection is fully manual teleop. The recording side is just **LeRobot's `record` pipeline**, which timestamps and synchronizes the overhead camera with the commanded base velocity at 30 Hz. For teleoperation, I configured a PS5 DualSense controller plugged in over USB and mapped through LeRobot's teleop interface — left stick for forward velocity, right stick for yaw rate, with no strafe binding so sideways velocity is zero by construction. The entire data-collection setup is a game controller and a laptop. The dataset is hosted on huggingface here: kaushikpraka/wm-smallarea_merged. You can visualize it at https://huggingface.co/spaces/lerobot/visualize_dataset.
+The dataset collection is fully manual teleop. The recording side is just **LeRobot's `record` pipeline**, which timestamps and synchronizes the overhead camera with the commanded base velocity at 30 Hz. For teleoperation, I configured a PS5 DualSense controller plugged in over USB and mapped through LeRobot's teleop interface. The left stick was for forward velocity and right stick for yaw rate, with no strafe binding so sideways velocity is zero by construction. The entire data-collection setup is a game controller and a laptop. The dataset is hosted on huggingface here: kaushikpraka/wm-smallarea_merged. You can visualize it at https://huggingface.co/spaces/lerobot/visualize_dataset.
 
-The dataset is **50 teleoperated episodes, 44,926 frames at 30 Hz** of deliberate *exploratory driving, not goal demonstrations*. The model's job is to learn the latent-space transitions the scene undergoes given *any* action, because at inference the planner will propose dozens of candidate actions per decision, including bad ones, and the model has to predict what all of them would do in order to rank them. Train only on clean, goal-directed trajectories and the model never learns what a *bad* action looks like, so it can't tell the planner which candidates to reject. So I drove to cover the space, not to accomplish anything. My driving trajectories included: arcs and curves, pure forward runs, pure rotations both directions, the occasional stationary pause as a clean identity anchor where the action is exactly `(0, 0)`. The environment was a subsection of my room, roughly 2 m × 2 m carpeted area, blinds closed and room lights on for stable illumination, furniture left in fixed positions as landmarks. I intentionally kept conditions consistent across episodes, while varying the positions and headings for each new run. Driving was kept to entirely forward motion without any reverse commands. This becomes important later on when constructing the navigation graph.
+The dataset is **50 teleoperated episodes, 44,926 frames at 30 Hz** of deliberate *exploratory driving, not goal demonstrations*. The model's job is to learn the latent-space transitions the scene undergoes given *any* action, because at inference the planner will propose dozens of candidate actions per decision, including bad ones, and the model has to predict what all of them would do in order to rank them. Train only on clean, goal-directed trajectories and the model never learns what a *bad* action looks like, so it can't tell the planner which candidates to reject. So I drove to cover the space, not to accomplish anything. My driving trajectories included: arcs and curves, pure forward runs, pure rotations both directions, the occasional stationary pause as a clean identity anchor where the action is exactly `(0, 0)`. The environment was a subsection of my room, roughly 2 m × 5 m carpeted area, blinds closed and room lights on for stable illumination, furniture left in fixed positions as landmarks. I intentionally kept conditions consistent across episodes, while varying the positions and headings for each new run. Driving was kept to entirely forward motion without any reverse commands. This becomes important later on when constructing the navigation graph.
 
 [FIGURE: ✅ assets/world_trajectories.png]
 *A sample of the driving. Dead-reckoned paths from a handful of the 50 tele-operated episodes — a glimpse of the exploratory driving that makes up the ~25-minute dataset, all in one section of a room.*
@@ -132,7 +128,7 @@ The fix was a **controlled contrast**: hold rotation near zero and directly comp
 *Where motion lives in the latent. Translation lights up the near-field floor (parallax); rotation lights up the far horizon (the FOV sweeping). The robot's own body stays put — a built-in registration check.*
 
 [FIGURE: ✅ assets/fsweep_chunk_distributions.png]
-*[TODO: confirm this is the figure you want here, or swap for the stationary-vs-translation AUC chart from viz/stationary-vs-translation.]*
+*Latent change per chunk, across frame intervals. Raising the temporal stride grows the per-chunk motion and lifts translation's signal above the noise floor.*
 
 ---
 
@@ -168,7 +164,15 @@ Offline — graded against held-out data where I know the answer — this passed
 [FIGURE: 🆕 system/loop diagram — observe → imagine → score → act (hand-authored SVG)]
 *The planning loop. [TODO: make this diagram.]*
 
-[TODO: small results table — beats-do-nothing %, reached_ratio, sign agreement, dx/dθ error, replan time.]
+| Offline planner gate (step-8000, 35 held-out scenes) | Result |
+|---|---|
+| Beats the do-nothing (no-move) floor | 100% of scenes |
+| Reached / world-model ceiling (`cem_reached / gt_ceiling`) | ~1.0–1.1, every motion bucket |
+| Turn / forward sign recovered | 100% |
+| Translation error · heading error | ~1 cm · ~2.5° |
+| Replan time at DDIM=3 (no pivot collapse) | ~7 s |
+
+> Graded against held-out data, stratified by motion (translation / pivot / arc / slow). CEM nearly saturates the model's own prediction ceiling in every bucket — the residual goal gap is world-model error, not planner failure.
 
 ---
 
@@ -204,7 +208,13 @@ So instead of theorizing about the objective, I **measured** it. Hand-placed at 
 
 So the pivot: **retrain the world model to predict frozen DINOv2 patch tokens** instead of VAE latents, so the space it imagines in *is* the validated distance space and the planning cost (token cosine) needs zero training.
 
-[TODO: the Gate A bake-off table — pixel L1 / SD-VAE L2 / DINOv2 cosine, with radial ρ, far-band slope/σ, verdict. Restyle from context/learned-distance-metric.md.]
+| Distance candidate | Radial ρ | Far-band slope / σ (radial · lateral) | Verdict |
+|---|---|---|---|
+| Pixel L1 | 1.00 | 706 · 386 | fail — lateral ordering breaks |
+| **SD-VAE latent L2** (the objective we'd been planning with) | 1.00 | **1.25 · 0.80** | **FAIL** — far-field gradient below the standing-still noise floor |
+| **Frozen DINOv2 patch cosine** | 0.94 | **12 · 21** | **PASS** |
+
+> Same hand-placed frames, three candidate distances. The objective I'd been planning with was perfectly ordered (ρ = 1.0) yet its gradient past 40 cm sat at ~1σ of the robot's own standing-still noise — invisible to CEM — while a never-trained DINOv2 read 12–21σ of slope on the exact same pixels.
 
 It's worth naming what the stack had quietly become — it isn't novel, it's a recipe the literature already mapped. Predicting frozen DINOv2 patch tokens and planning by distance in that token space is almost exactly **DINO-WM** (Zhou et al., 2024), the paper I flagged up top. DINO-WM builds its world model on frozen DINOv2 patch features, plans with MPC over distances in that space, and shows in its ablations that the *patch* tokens carry the signal (pool them and performance collapses) — the same thing my Gate A sweep found from the other direction. The measurement just walked me back onto a path that was already there. Two differences: DINO-WM uses a deterministic regression predictor and reports entirely in simulation, while I kept NanoWM's *generative* diffusion-forcing backbone (swapping only its target and fixing the action injection) and ran it closed-loop on a real robot.
 
@@ -233,8 +243,8 @@ There's an irony here. I set out to *replace* the classical navigation stack —
 [FIGURE: ✅ assets/route_montage.png (wide)]
 *A route is a film strip. Dijkstra through the graph returns a sequence of remembered frames; the planner chases them one at a time.*
 
-[FIGURE: ⏳ context/figures/subgoal-graph-anim.mp4 — copy into assets/]
-*[TODO: embed the animated build/route explainer — it was made for exactly this section.]*
+[FIGURE: ✅ assets/subgoal-graph-anim.mp4 — wide, controls]
+*Building and routing the graph. Episodes become nodes, shared views weld threads together, and Dijkstra hands the planner one remembered waypoint at a time.*
 
 ---
 
