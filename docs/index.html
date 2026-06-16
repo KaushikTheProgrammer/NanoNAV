@@ -100,15 +100,13 @@ grabbed me: a call to <em>democratize</em> world-model research, to show the ide
 frontier lab's compute or data to be worth building on. That resonated, and it set the constraint
 that defines everything here: do this small.</p>
 
-<p>The other nudge was where they pointed it. Nano World Models is evaluated across three domains —
-simple control environments, game simulation, and <strong>real-robot data</strong> — and that last
-one is the RT-1 robotics dataset, not a game or a driving sim. If the recipe worked on real robot
-data at that scale, maybe it would work on <em>my</em> robot data. And I happened to have the robot:
-a <strong>LeKiwi</strong> was sitting on my desk from earlier imitation-learning projects — a small
-mobile manipulator from the LeRobot ecosystem, the kind of hardware that makes "do this small"
-actually possible. The idea more or less wrote itself: collect my own data, train a nano-scale
-world model on it, and see if I could plan with it on the real machine. That's how the journey
-started.</p>
+<p>What clinched it was where Nano World Models pointed. It's evaluated across three domains — simple
+control environments, game simulation, and <strong>real-robot data</strong> — and that last one is
+the RT-1 robotics dataset, not a game or a driving sim. If the recipe held on real robot data at that
+scale, it might hold on <em>mine</em>. And I had the robot: a <strong>LeKiwi</strong> left over from
+earlier imitation-learning work — a small mobile manipulator from the LeRobot ecosystem, exactly the
+kind of hardware that makes "do this small" possible. So the plan was simple: collect my own data,
+train a nano-scale world model on it, and see if I could plan with it on the real machine.</p>
 
 <!-- ============ 1 ============ -->
 <h2 id="problem">1 · The problem and the bet</h2>
@@ -143,8 +141,7 @@ stays parked in a fixed pose throughout, where it doubles as the mast for the ca
 <p>The one modification that really matters is that camera. The stock LeKiwi looks out from a low
 front-facing webcam; I swapped in wider-angle USB cameras and, crucially, added a <strong>third
 camera on a custom mount that looks down over the robot from above at roughly a 55° tilt</strong>.
-That overhead vantage is the single most consequential hardware choice in the whole project. It
-captures four depth zones at once — the robot's own body, the near floor, mid-room objects, and the
+That overhead vantage captures four depth zones at once — the robot's own body, the near floor, mid-room objects, and the
 far walls — and because the robot's body sits fixed in the bottom of every frame, it gives the world
 model a constant ego-motion reference to read its own movement against. Everything downstream — the
 world model, the distance metric, the graph — is built on what this one camera sees.</p>
@@ -158,31 +155,30 @@ Drop it at <code>docs/assets/lekiwi-mount.jpg</code> and it becomes the figure h
 
 <h3>Collecting the data</h3>
 
-<p>There's no autonomy in the dataset — I drove every frame of it myself. The recording side is just
+<p>The dataset collection is fully manual teleop. The recording side is
 <strong>LeRobot's <code>record</code> pipeline</strong>, which timestamps and synchronizes the
-overhead camera with the commanded base velocity at 30 Hz (and, as a ground-truth check, logs wheel
-odometry and the parked arm's joint angles alongside). The teleoperation device is the most
-pleasingly democratized part of the whole rig: a <strong>PS5 DualSense controller</strong>, plugged
-in over USB and mapped through LeRobot's teleop interface — left stick for forward velocity,
-right stick for yaw rate, with no strafe binding so sideways velocity is zero by construction. The
-entire data-collection setup is a game controller and a laptop.</p>
+overhead camera with the commanded base velocity at 30 Hz. For teleoperation I mapped a
+<strong>PS5 DualSense controller</strong> over USB through LeRobot's teleop interface — left stick
+for forward velocity, right stick for yaw rate, with no strafe binding so sideways velocity is zero
+by construction. The whole data-collection setup is a game controller and a laptop. The dataset is
+public on Hugging Face
+(<a href="https://huggingface.co/datasets/kaushikpraka/wm-smallarea_merged"><code>kaushikpraka/wm-smallarea_merged</code></a>);
+you can browse it in the
+<a href="https://huggingface.co/spaces/lerobot/visualize_dataset">LeRobot dataset visualizer</a>.</p>
 
-<p>The dataset is <strong>50 teleoperated episodes, 44,926 frames at 30 Hz</strong> of
-<em>exploratory driving, not goal demonstrations</em> — and that distinction is a deliberate design
-choice, not laziness. The model's job is to learn the latent-space transitions the scene undergoes
-under <em>any</em> action, because at inference the planner will propose dozens of candidate actions
-per decision — most of them bad — and the model has to predict what all of them would do in order to
-rank them. Train only on clean, goal-directed trajectories and the model never learns what a
-<em>bad</em> action looks like, so it can't tell the planner which candidates to reject. So I drove
-to cover the space, not to accomplish anything: arcs and curves (because the planner will propose
-them), pure forward runs, pure rotations both directions, the occasional stationary pause as a clean
-identity anchor where the action is exactly <code>(0, 0)</code>, and a handful of deliberately slow
-episodes to fill in the near-goal low-speed regime my full-throttle habit otherwise skipped.
-Conditions were kept consistent across episodes — a roughly 2 m × 2 m carpeted area, blinds closed
-and room lights on for stable illumination, furniture left in fixed positions as landmarks — and the
-robot was re-placed at varied positions <em>and</em> headings between episodes. One property of that
-driving becomes load-bearing much later: it was almost entirely <strong>forward</strong> motion,
-which is exactly why the navigation graph ends up having to be directed.</p>
+<p>The dataset is <strong>50 teleoperated episodes, 44,926 frames at 30 Hz</strong> of deliberate
+<em>exploratory driving, not goal demonstrations</em>. The model's job is to learn the latent-space
+transitions the scene undergoes under <em>any</em> action, because at inference the planner proposes
+dozens of candidate actions per decision — including bad ones — and has to predict what all of them
+would do in order to rank them. Train only on clean, goal-directed trajectories and the model never
+learns what a <em>bad</em> action looks like, so it can't tell the planner which candidates to
+reject. So I drove to cover the space, not to accomplish anything: arcs and curves, pure forward
+runs, pure rotations both directions, the occasional stationary pause as a clean identity anchor
+where the action is exactly <code>(0, 0)</code>. The environment was a subsection of my room — a
+roughly 2 m × 2 m carpeted area, blinds closed and room lights on for stable illumination, furniture
+fixed as landmarks — with the robot re-placed at varied positions and headings between episodes. The
+driving was entirely <strong>forward</strong>, no reverse, which becomes load-bearing later: it's
+exactly why the navigation graph ends up having to be directed.</p>
 
 <figure>
   <img src="assets/world_trajectories.png" alt="Integrated SE(2) trajectories of all 50 training episodes">
@@ -193,22 +189,19 @@ which is exactly why the navigation graph ends up having to be directed.</p>
 
 <h3>The action space: dead reckoning</h3>
 
-<p>The robot's raw controls are two numbers — a forward velocity and a yaw rate. But I don't hand
+<p>The robot's raw controls are two floats — a forward velocity and a yaw rate — but I don't hand
 those to the model directly. Instead I <strong>dead-reckon</strong>: integrate each short window of
 about five control steps (~167 ms) into a single body-frame pose change, a displacement
-<strong>(Δx, Δθ)</strong> I call a "chunk." It's the oldest trick in mobile robotics — add up the
-wheel motion to estimate where you went — and it quietly does a lot of work here.</p>
+<strong>(Δx, Δθ)</strong> I call a "chunk."</p>
 
 <p>It's a <strong>body-frame</strong> displacement, so "drive forward 5 cm" is the same vector
 <code>(0.05, 0)</code> no matter which way the robot is facing — heading invariance the model gets
-for free instead of having to learn it. It's <strong>low-dimensional</strong> (two numbers; I drop
-the millimeter-scale lateral drift Δy, which keeps the planner's search small). And — the subtle,
-important one — it's an <strong>integrated displacement, not a raw velocity</strong>, and that choice
-is aimed squarely at the failure that nearly sank the project. During steady cruising the velocity is
+for free instead of having to learn it. It's <strong>low-dimensional</strong> (I drop the
+millimeter-scale lateral drift Δy), which keeps the planner's search small. And it's an
+<strong>integrated displacement, not a raw velocity</strong>: during steady cruising the velocity is
 constant for many frames while the image keeps changing, so a model trained on velocities learns the
 action is uninformative and quietly stops listening to it. A displacement is nonzero exactly when the
-robot moves and scales with how far, so it stays coupled to what the camera sees. (This is the "dead
-actions" pathology of Run 001, two sections from now.)</p>
+robot moves and scales with how far, so it stays coupled to what the camera sees.</p>
 
 <p>Dead reckoning has one assumption baked in — <strong>no significant slip</strong>, that a
 commanded centimeter is a real centimeter across the floor. For a light, slow robot on flat carpet
@@ -247,15 +240,24 @@ on my 50 episodes. So this is a scene-specific dynamics model riding on a genera
 — it learns the physics of <em>this</em> room, and generalizes to new trajectories and goals within
 it, not across environments.</p>
 
+<p>Training itself is ordinary diffusion with one wrinkle. The transformer learns to <strong>denoise
+the next frame's latent</strong> given the recent frames and the action chunk — a
+<strong>v-prediction</strong> objective on a cosine, zero-terminal-SNR schedule — trained
+<em>diffusion-forcing</em> style, with an independent noise level per frame, which is what lets one
+network roll itself out autoregressively at inference. The action enters through a small
+<strong>additive embedding</strong> — a detail that comes back to matter. The rest is unremarkable:
+AdamW at 1e-4, effective batch 64, bf16, and about <strong>12,000 steps — roughly 20 passes over the
+50 episodes — on a single rented H100</strong>, an overnight run rather than a multi-day one. That
+short wall-clock is the point: the recipe is cheap enough to iterate on, which is exactly what the
+next several sections do, repeatedly.</p>
+
 <aside class="fieldnote">
   <p><strong>"But won't 160M parameters on 50 episodes just overfit?"</strong> Yes — in the textbook
-  sense, and fast; the first training run was overfitting within a few epochs (more on that shortly).
+  sense, and fast; the first training run was overfitting within a few epochs.
   But overfitting turns out to be the wrong thing to worry about here, for three reasons. First,
-  specializing hard to <em>this one room</em> is the goal, not the failure mode — I'm not expecting
-  the model to generalize across environments, only to new trajectories and goals inside the room it
-  trained on. The frozen backbone already carries all the cross-scene perceptual generalization; the
-  part I train from scratch only has to learn one room's dynamics, a far smaller and lower-data job
-  than learning to see and predict at the same time. Second, the metric that screams "overfit" — the
+  specializing hard to <em>this one room</em> is the goal, not the failure mode: the frozen backbone
+  carries the cross-scene generalization, so the part I train from scratch only has to learn one
+  room's dynamics — a far smaller job than learning to see and predict at once. Second, the metric that screams "overfit" — the
   denoising validation loss — is the wrong dial to watch: the quality that actually matters for
   planning keeps <em>improving</em> well past the point val-loss bottoms out and turns up (the
   U-shaped curve in the next section). Naively early-stopping on val-loss would have handed me a
@@ -283,8 +285,7 @@ happened. If the model uses actions, true beats zero beats random.</p>
 <p>Run 001 predicted nearly the same future no matter what I told it the robot did. The
 action-embedding signal measured <strong>0.0088 RMS</strong> — essentially noise — and zero-action
 and random-action rollouts were indistinguishable. A world model that ignores actions is a
-screensaver. Worse, it had <strong>overfit by epoch ~3</strong> (50 episodes is tiny for a 160M
-model) and no best-checkpoint was saved, so I'd measured an already-overfit model.</p>
+screensaver.</p>
 
 <p>This is the start of the real story, because my first explanation for <em>why</em> the actions
 were dead turned out to be wrong — twice over.</p>
@@ -292,25 +293,29 @@ were dead turned out to be wrong — twice over.</p>
 <!-- ============ 5 ============ -->
 <h2 id="signal">5 · Is translation even visible? Debugging the signal</h2>
 
-<p>The first hypothesis was that the dataset's frame interval was too short, so I previewed what
-<em>raising</em> it would do without retraining — measuring how much the latent changes per chunk as
-a function of the action. The result looked damning for the camera: <strong>rotation</strong>
-correlated strongly with latent change (~0.64–0.70), but <strong>translation</strong> correlated at
-~0.00 at every frame interval. The conclusion I almost wrote into the record: <em>this overhead
-camera geometrically cannot see forward motion.</em> That would have meant a hardware change.</p>
+<p>The first hypothesis was that the <strong>frame interval was too short</strong> — that each step
+moved the scene so little the action's effect drowned in noise. I could test that without retraining
+anything, directly in the recorded frames: encode them, and measure how much the latent
+<em>changes</em> across a chunk as a function of the action, at several frame intervals. If forward
+motion barely registers in the frames themselves, no world model could be expected to learn it. The
+first cut looked damning: <strong>rotation</strong> correlated strongly with latent change
+(~0.64–0.70), but <strong>translation</strong> correlated at ~0.00 — and at every frame interval. The
+conclusion I almost wrote down was the expensive one — <em>this overhead camera geometrically cannot
+see forward motion</em> — which would have meant changing the hardware.</p>
 
-<p>It was wrong, and the way it was wrong is the most important methodological lesson in the project.
-The correlation was the wrong estimator. Forward speed is nearly bang-bang (the robot is either
-stopped or at full speed), so there's almost no spread in "how much translation" to correlate
-against; and the big latent changes from pure rotation drag the whole correlation toward zero.</p>
+<p>It was wrong, and instructively so: correlation was the wrong estimator. Forward speed is nearly
+bang-bang — the robot is either stopped or at full speed — so there's almost no spread in "how much
+translation" for a correlation to latch onto; and the large latent swings from pure rotation drag the
+pooled number toward zero. A flat correlation didn't mean no signal; it meant the wrong test.</p>
 
-<p>The fix was a <strong>controlled contrast</strong>: hold rotation near zero, and directly compare
-the latent change of <em>stationary</em> chunks against <em>pure-translation</em> chunks. Translation
-separated cleanly — <strong>AUC 0.94–0.98</strong>, meaning a forward-driving chunk out-changes a
-standing-still chunk 94–98% of the time — and the signal scaled monotonically as I increased the
-frame interval (a dose-response a scene confound can't fake). The information was in the latent all
-along. The real problem was training-side: an overfit model, measured at a frame interval where
-translation's signal barely cleared the noise floor.</p>
+<p>The fix was a <strong>controlled contrast</strong>: hold rotation near zero and directly compare
+the latent change of <em>stationary</em> chunks against <em>pure-translation</em> chunks. Now
+translation separated cleanly — <strong>AUC 0.94–0.98</strong>, meaning a forward-driving chunk
+out-changes a standing-still chunk 94–98% of the time — and on the <em>same frame-interval axis</em>
+where the correlation had been flat, detectability climbed monotonically as I widened the interval (a
+dose-response a scene confound can't fake). The signal was in the frames all along; what Run 001
+lacked was a frame interval wide enough for it to clear the noise — exactly the knob the retrain
+would turn next.</p>
 
 <p class="note"><em>Lesson: a pooled correlation can bury a perfectly detectable signal. Design the
 controlled test first.</em></p>
@@ -391,14 +396,26 @@ search.</p>
 <div class="pending"><b>Pending figure — system/loop diagram.</b><br>
 observe → imagine → score → act (hand-authored SVG, to be made).</div>
 
-<div class="draft">TODO: small results table — beats-do-nothing %, reached_ratio, sign agreement,
-dx/dθ error, replan time.</div>
+<table>
+  <thead>
+    <tr><th>Offline planner gate (step-8000, 35 held-out scenes)</th><th>Result</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Beats the do-nothing (no-move) floor</td><td>100% of scenes</td></tr>
+    <tr><td>Reached / world-model ceiling (<code>cem_reached / gt_ceiling</code>)</td><td>~1.0–1.1, every motion bucket</td></tr>
+    <tr><td>Turn / forward sign recovered</td><td>100%</td></tr>
+    <tr><td>Translation error · heading error</td><td>~1&nbsp;cm · ~2.5°</td></tr>
+    <tr><td>Replan time at DDIM=3 (no pivot collapse)</td><td>~7&nbsp;s</td></tr>
+  </tbody>
+</table>
+<p class="note">Graded against held-out data, stratified by motion (translation / pivot / arc / slow).
+CEM nearly saturates the model's own prediction ceiling in every bucket — the residual goal gap is
+world-model error, not planner failure.</p>
 
 <!-- ============ 8 ============ -->
 <h2 id="hardware">8 · Touching reality: transport and open-loop replay</h2>
 
-<p>This is the moment the project stops being a simulation, and it's worth being concrete about the
-plumbing, because the compute and the robot are nowhere near each other. The world model and the CEM
+<p>The compute and the robot are nowhere near each other. The world model and the CEM
 planner run on a <strong>rented H100 in a datacenter</strong>; the robot is on the floor of my room.
 On the robot, a <strong>Raspberry Pi runs LeRobot's LeKiwi host</strong> — a small ZMQ server that
 streams the overhead camera frame (plus the base state) and accepts velocity commands. In the cloud,
@@ -410,9 +427,8 @@ ZMQ traffic back to the Pi. One closed-loop step is therefore: pull a frame over
 preprocess and encode it → CEM rolls the world model forward and picks the best first chunk → convert
 that <code>(Δx, Δθ)</code> back to a <code>(v, ω)</code> velocity → send it to the Pi, which drives
 the base for exactly one chunk (~0.33 s) → stop, re-observe, replan. The per-observation round-trip
-is a few tens of milliseconds — trivial next to the ~7-second planning step, which is exactly why a
-GPU in a datacenter can drive a robot in my room without the latency mattering: it's stop-and-plan,
-not real-time control.</p>
+is a few tens of milliseconds — trivial next to the ~7-second planning step. It's stop-and-plan, not
+real-time control, which is the only reason a datacenter GPU can drive a robot in my room at all.</p>
 
 <p>Two bring-up notes earned their keep. Sign and unit conventions had to be pinned on the
 <em>real</em> robot (forward +x in m/s, CCW +yaw in deg/s, with a low-speed rotation deadband); and
@@ -485,8 +501,40 @@ it.</p>
 instead of VAE latents, so the space it imagines in <em>is</em> the validated distance space and the
 planning cost (token cosine) needs zero training.</p>
 
-<div class="draft">TODO: the Gate A bake-off table — pixel L1 / SD-VAE L2 / DINOv2 cosine, with
-radial ρ, far-band slope/σ, verdict. Restyle from context/learned-distance-metric.md.</div>
+<table>
+  <thead>
+    <tr>
+      <th>Distance candidate</th>
+      <th>Radial&nbsp;ρ</th>
+      <th>Far-band slope / σ<br>(radial · lateral)</th>
+      <th>Verdict</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Pixel L1</td>
+      <td>1.00</td>
+      <td>706 · 386</td>
+      <td>fail — lateral ordering breaks</td>
+    </tr>
+    <tr>
+      <td><strong>SD-VAE latent L2</strong><br><span class="tnote">the objective we'd been planning with</span></td>
+      <td>1.00</td>
+      <td><strong>1.25 · 0.80</strong></td>
+      <td><strong>FAIL</strong> — far-field gradient below the standing-still noise floor</td>
+    </tr>
+    <tr>
+      <td><strong>Frozen DINOv2 patch cosine</strong></td>
+      <td>0.94</td>
+      <td><strong>12 · 21</strong></td>
+      <td><strong>PASS</strong></td>
+    </tr>
+  </tbody>
+</table>
+<p class="note">Same hand-placed frames, three candidate distances. The objective I'd been planning
+with was <em>perfectly ordered</em> (ρ&nbsp;=&nbsp;1.0) yet its gradient past 40&nbsp;cm sat at
+~1σ of the robot's own standing-still noise — invisible to CEM — while a never-trained DINOv2 read
+12–21σ of slope on the exact same pixels.</p>
 
 <p>It's worth naming what the stack had quietly become — it isn't novel, it's a recipe the
 literature already mapped. Predicting frozen DINOv2 patch tokens and planning by distance in that
@@ -494,14 +542,14 @@ token space is almost exactly <strong>DINO-WM</strong> (Zhou et al., 2024), the 
 top. DINO-WM builds its world model on frozen DINOv2 patch features, plans with MPC over distances in
 that space, and shows in its ablations that the <em>patch</em> tokens carry the signal (pool them and
 performance collapses) — the same thing my Gate A sweep found from the other direction. The
-measurement just walked me back onto a path that was already there. The two differences I care about:
+measurement just walked me back onto a path that was already there. Two differences:
 DINO-WM uses a deterministic regression predictor and reports entirely in simulation, while I kept
 NanoWM's <em>generative</em> diffusion-forcing backbone (swapping only its target and fixing the
 action injection) and ran it closed-loop on a real robot.</p>
 
-<p>The pivot also produced the most "research" moment of the project. Conventional wisdom (NanoWM's
-own ablations) said semantic latents like DINO's <em>kill</em> action conditioning — exactly Run
-001's dead-action failure. A four-way probe, one variable at a time, showed it was never the latents
+<p>The pivot also resolved the question left open by Run 001. Conventional wisdom (NanoWM's
+own ablations) said semantic latents like DINO's <em>kill</em> action conditioning — exactly that
+dead-action failure. A four-way probe, one variable at a time, showed it was never the latents
 but the <strong>conditioning path</strong>: the old additive injection atrophied to 0.0028 RMS
 (reproducing the failure on demand), while a stronger AdaLN injection on the same latents held at 0.2
 — a community "finding" reproduced, narrowed, and explained in about twelve GPU-hours.</p>
@@ -509,16 +557,13 @@ but the <strong>conditioning path</strong>: the old additive injection atrophied
 <p>The retrained model passed every offline gate, its action branch <em>strengthening</em> with
 training, and — critically — <strong>the hallucination was fixed at the source</strong>: from the
 exact frame that once conjured a different room, it now produces a soft, <em>same-scene</em>
-prediction. Regression-style models blur when unsure; diffusion teleported. (I also trained a small
-token→RGB decoder — but purely for visualization and debugging: it lets a human watch the model
-think, and is <em>not</em> part of the planner, which scores everything in token space and never
-decodes a frame at runtime.) Back on the real robot it drove —
+prediction. Regression-style models blur when unsure; diffusion teleported. (A small token→RGB decoder, used
+only for visualization, lets a human watch the model think; the planner itself scores in token space
+and never decodes.) Back on the real robot it drove —
 monotone descent from the plateau (0.32 → 0.19), full-speed commitment far out, millimeter
 corrections near the goal — <strong>including on the exact goal the old objective had failed</strong>,
 where the old flat distance had once commanded a hard turn in the wrong direction. The tape-measure
-prediction held up in the room. (One honest caveat, revisited in the limitations: the goal photos
-were captured in a different session, an offset that puts a ~0.2 floor under how close the metric
-ever reads — so "arrived" needs a tolerance.)</p>
+prediction held up in the room.</p>
 
 <figure>
   <img src="assets/c1_smoke_strip.png" alt="Token-space rollout decoded back to pixels">
@@ -554,19 +599,14 @@ apart are frames k chunks apart, on average?), and the waypoint spacing comes fr
 reliability curve (one-step descent succeeds 96% of the time at 2 chunks, falling off by 10) — so
 waypoints land at the 90% point.</p>
 
-<p>There's an irony here I didn't plan. I set out to <em>replace</em> the classical navigation stack
-— build a map, localize in it, plan a path — with a single learned world model, and by this point in
-the story I'd rebuilt exactly that triad: a map (the graph), localization (matching the live frame
-against it), and path planning (Dijkstra over the edges). The decomposition I was trying to avoid
-quietly reassembled itself out of learned parts. I've come to read that as a feature, not a defeat —
-<em>map → localize → plan</em> may simply be the right factorization for getting somewhere, not a
-relic of how classical robotics happened to be engineered. What actually changed is where each piece
-comes from: the map is remembered experience rather than a geometric reconstruction, localization is
-feature nearest-neighbor rather than pose estimation against landmarks, and the edges encode learned
-<em>drivability</em> rather than metric free space. And the one piece a classical stack can't
-hand-write — a controller that turns "go toward this remembered frame" into wheel commands with no
-geometry at all — is the world model, doing the only job that's truly its own. I didn't escape the
-classical stack so much as learn it from 25 minutes of driving.</p>
+<p>There's an irony here. I set out to <em>replace</em> the classical navigation stack — map,
+localize, plan — with a single world model, and ended up rebuilding exactly that triad out of learned
+parts: a map (the graph), localization (nearest-neighbor against it), and path planning (Dijkstra
+over the edges). What changed is where each piece comes from — the map is remembered experience, not
+a geometric reconstruction; the edges encode learned <em>drivability</em>, not metric free space — and
+the one piece a classical stack can't hand-write, a controller that turns "go toward this frame" into
+wheel commands with no geometry, is the world model doing the only job that's truly its own. I didn't
+escape the classical stack so much as learn it from 25 minutes of driving.</p>
 
 <figure class="wide">
   <img src="assets/route_montage.png" alt="Waypoint frames along a planned route through the graph">
@@ -593,7 +633,7 @@ can do. Temporal edges became one-way.</p>
 
 <p><strong>Even the welds lie about direction.</strong> A weld can quietly place a waypoint ~10 cm
 <em>behind</em> you, and tightening the threshold to forbid that collapsed the map's connectivity.
-The fix is my favorite trick in the project: <strong>motion-parallax direction certification.</strong>
+The fix uses <strong>motion-parallax direction certification</strong>.
 For a candidate weld from frame i to frame j, check whether i's own <em>successors in time</em> get
 closer to j — if they do, j is provably <em>ahead</em>. The trajectories certify their own welds;
 zero new data. The result is ~17,800 directed welds, the map 94.5% strongly connected, with direction
@@ -634,15 +674,12 @@ tolerance. Convergence in the final centimeters is goal-dependent — one goal c
 hovers at 0.30. The graph's nodes come from the same data the world model trained on, so the map is
 exactly as big as where I happened to drive.</p>
 
-<p>And the bigger disclaimer, the one the irony a couple of sections back was already pointing at:
-this was built out of curiosity, not as a claim that it's the <em>right</em> way to move a robot
-around a room. If you needed dependable indoor navigation tomorrow, the mature SLAM-and-plan stack —
-or honestly just a depth camera and a few well-worn libraries — would very likely get you there
-faster and more robustly than a world model trained on 25 minutes of driving. I built this to find
-out what happens when you take the planning-world-model bet seriously on tiny data and real hardware:
-where it breaks, what it teaches, and how much of the classical structure you end up rediscovering
-anyway. The point was never to win a benchmark — it was to understand the recipe from the inside, and
-the rediscovery <em>was</em> the lesson.</p>
+<p>And the bigger disclaimer: this was built out of curiosity, not as a claim that it's the
+<em>right</em> way to move a robot around a room. If you needed dependable indoor navigation tomorrow,
+the mature SLAM-and-plan stack — or honestly just a depth camera and a few well-worn libraries —
+would very likely get you there faster and more robustly. The point was never to win a benchmark; it
+was to take the planning-world-model bet seriously on tiny data and real hardware and see where it
+breaks.</p>
 
 <p>But consider what 25 minutes of driving bought: a robot that drives to a photograph across a room
 it has no map of, using a world model small enough to train overnight, a distance metric that costs

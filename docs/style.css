@@ -7,7 +7,7 @@
   --accent: #b3552c;
   --bg: #fdfdfc;
   --code-bg: #f4f4f0;
-  --measure: 44rem;
+  --measure: 50rem;
   --serif: "Charter", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --mono: "SF Mono", "Cascadia Mono", Consolas, Menlo, monospace;
@@ -135,7 +135,7 @@ nav.toc ol { margin: 0; padding-left: 1.2rem; }
 /* ---- sticky left-rail TOC with scroll-spy (wide screens only) ---- */
 .toc-rail { display: none; }
 
-@media (min-width: 80rem) {
+@media (min-width: 84rem) {
   /* on wide screens the rail replaces the inline TOC */
   nav.toc { display: none; }
 
@@ -143,8 +143,10 @@ nav.toc ol { margin: 0; padding-left: 1.2rem; }
     display: block;
     position: fixed;
     top: 5.5rem;
-    left: calc(50% - 37rem);
-    width: 13rem;
+    /* live in the left gutter; pin near the edge on tighter wide screens so it
+       never drifts into the wide figures' breakout zone */
+    left: max(1.75rem, calc(50% - 43rem));
+    width: 12rem;
     max-height: calc(100vh - 8rem);
     overflow-y: auto;
     font-family: var(--sans);
@@ -241,6 +243,19 @@ figcaption b { color: var(--text); }
   font-size: 0.95rem;
 }
 
+/* Breakout elements (hero + wide figures) must clear the fixed TOC rail.
+   This block lives AFTER the base .hero / figure.wide width rules so it wins
+   the cascade (equal specificity → later source order). The 58rem cap keeps a
+   ~2rem gutter beside the rail on big screens; calc(100vw - 31rem) shrinks the
+   element on tighter wide screens (~84rem) so its centered left edge never
+   reaches the rail. Breakpoint matches the rail's (84rem). */
+@media (min-width: 84rem) {
+  .hero,
+  figure.wide {
+    width: min(58rem, calc(100vw - 31rem));
+  }
+}
+
 /* ---- code ---- */
 code {
   font-family: var(--mono);
@@ -278,6 +293,12 @@ th {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted);
+}
+.tnote {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--muted);
+  font-size: 0.82em;
 }
 
 /* ---- asides / notes ---- */
