@@ -163,11 +163,14 @@ def render_figure(marker, caption):
     have = resolved and all(ok for _, ok in resolved)
 
     if not have:
-        desc = caption_html(caption) if caption else ""
-        desc = re.sub(r"^<figcaption>(?:<b>)?|(?:</b>)?</figcaption>$", "", desc).strip()
-        if not desc:
+        desc = ""
+        if caption:
+            c = re.sub(r"\[TODO:[^\]]*\]", "", caption.strip().strip("*")).strip()
+            desc = inline(c) if c else ""
+        if not desc:                              # caption empty/TODO-only → use the marker text
             d = re.sub(r"^\[FIGURE:\s*", "", marker).rstrip("]")
-            d = re.sub(r"^[✅🆕⏳]\s*", "", d).strip()
+            d = re.sub(r"^[✅🆕⏳]\s*", "", d)
+            d = re.sub(r"\[TODO:[^\]]*\]", "", d).strip()
             desc = inline(d)
         return '<div class="pending"><b>Pending figure.</b> %s</div>' % desc
 
@@ -305,8 +308,8 @@ def build():
         else:
             # strip any literal "N · " — sections are auto-numbered by position,
             # so splitting/reordering never requires manual renumbering
-            title = re.sub(r"^\d+\s*·\s*", "", head).strip()
-            numbered.append((title, body))
+            sec_title = re.sub(r"^\d+\s*·\s*", "", head).strip()
+            numbered.append((sec_title, body))
 
     # masthead
     masthead = (
