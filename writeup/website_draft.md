@@ -177,7 +177,7 @@ This meant that very close to a goal, the metric has a sharp basin and the robot
 
 Far from the goal, the **objective was blind**. CEM had no gradient and every candidate action looked equidistant from the goal.
 
-To find out why, each candidate metric (SD-VAE, DINOv2, Pixel-L1) was measured at tape-marked positions across the room (10–60 cm out, ±60 cm lateral, ±30° yaw). Two things were tested for each: whether it correctly orders positions by distance at all (ρ is the Spearman rank correlation between metric value and ground-truth tape distance, where 1.0 means perfect global ordering), and whether its gradient in the far band stays above the standing-still noise floor. A metric can score ρ = 1.00 globally and still be useless if the gradient per step is buried in noise.
+To find out why, each candidate metric (SD-VAE, DINOv2, Pixel-L1) was measured at tape-marked positions across the room (10–60 cm out, ±60 cm lateral, ±30° yaw). Two things were tested for each: whether it correctly orders positions by distance at all (ρ is the Spearman rank correlation — it converts both the metric values and the tape distances to ranks, then checks whether those ranks agree. A value of 1.0 means every closer position scores closer, without exception), and whether its gradient in the far band stays above the standing-still noise floor. A metric can score ρ = 1.00 globally and still be useless if the gradient per step is buried in noise.
 
 [FIGURE: ✅ assets/sweep_diagram.png]
 *The measurement setup. The robot was hand-placed at each grid position and a frame was captured. Orange poses are the near band (0–30 cm), blue are the far band where CEM needs to plan. At select positions, three yaw orientations were tested (±25°).*
