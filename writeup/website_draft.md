@@ -167,9 +167,9 @@ Retrained at f=10. The action branch came alive: clean **true < zero < random** 
 
 [TODO: add goal image, start position, and video of this run]
 
-The robot wandered. Distance-to-goal hovered around 45 for 22 steps, yaw command flip-flopping every step. Hand-placing the robot at measured distances and recording latents directly gave a clear result: **monotone descent over 40 cm with healthy signal-to-noise**.
+The robot wandered. L2 distance-to-goal hovered around 45 for 22 steps, yaw command flip-flopping every step. Hand-placing the robot at measured distances and recording latents directly gave a clear result: **monotone descent over 40 cm with healthy signal-to-noise**.
 
-Close to a goal, the metric has a sharp basin and the robot converges. Far from it, the metric goes flat. Every direction looks equidistant and the robot wanders. The problem wasn't the camera or the planner. It was the **distance metric**.
+This meant that very close to a goal, the metric has a sharp basin and the robot converges. Slightly far from it, the metric goes flat. Every direction looks equidistant and the robot wanders. The problem wasn't the camera or the planner. It was the **distance metric**.
 
 ---
 
@@ -177,7 +177,7 @@ Close to a goal, the metric has a sharp basin and the robot converges. Far from 
 
 Far from the goal, the **objective was blind**. CEM had no gradient and every candidate action looked equidistant from the goal.
 
-To find out why, each candidate metric was measured at tape-marked positions across the room (10–60 cm out, ±60 cm lateral, ±30° yaw). Two things were tested for each: whether it correctly orders positions by distance at all (ρ, the correlation with true distance), and whether its gradient in the far band stays above the standing-still noise floor — the number CEM actually needs. A metric can score ρ = 1.00 globally and still be useless if the gradient per step is buried in noise.
+To find out why, each candidate metric (SD-VAE, DINOv2, Pixel-L1) was measured at tape-marked positions across the room (10–60 cm out, ±60 cm lateral, ±30° yaw). Two things were tested for each: whether it correctly orders positions by distance at all (ρ is the Spearman rank correlation between metric value and ground-truth tape distance, where 1.0 means perfect global ordering), and whether its gradient in the far band stays above the standing-still noise floor. A metric can score ρ = 1.00 globally and still be useless if the gradient per step is buried in noise.
 
 [FIGURE: ✅ assets/sweep_diagram.png]
 *The measurement setup. The robot was hand-placed at each grid position and a frame was captured. Orange poses are the near band (0–30 cm), blue are the far band where CEM needs to plan. At select positions, three yaw orientations were tested (±25°).*
