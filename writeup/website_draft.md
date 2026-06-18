@@ -211,7 +211,7 @@ On the robot, the retrained model drove distance down from 0.32 → 0.19, commit
 
 One practical note: DINOv2 tokens are not directly human-readable. To watch the model think, a small **token-to-RGB decoder** was trained separately to map predicted token grids back to approximate pixel frames. The planner itself never uses it; it scores entirely in token space. The decoder exists purely for visualization, and is what produces the filmstrip figures in this post.
 
-The retrain also answered the Run 001 question. The dead action was not an inherent incompatibility with semantic latents. It was the injection method.
+The retrain also answered the Run 001 question. Switching the prediction target from VAE latents to DINOv2 tokens meant training from scratch, which opened a clean opportunity to probe what had actually caused the dead action. Run 001 used VAE latents with additive injection. Two explanations were possible: the VAE representation was too weak for action conditioning to matter, or the additive injection method was too easy to ignore regardless of representation. Running both injection methods against the same semantic latents settled it. The dead action was not an inherent incompatibility with semantic latents. It was the injection method.
 
 **Additive injection** adds the action embedding as a residual to each transformer layer. The model can neutralize that influence by learning to make the residual contribution small. With a strong semantic signal already dominating the latents, that is exactly what happened, and the action embedding RMS atrophied to 0.0028.
 
