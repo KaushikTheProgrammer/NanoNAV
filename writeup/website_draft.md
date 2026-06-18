@@ -47,9 +47,9 @@ The Nano World Models project evaluates across simple control environments, game
 
 ## 1 · The Problem Statement
 
-The classical way to make a robot go somewhere is a pipeline where you build a map with SLAM, localize yourself in it, plan a path, and follow it. It works reliably, but it is heavy machinery, requiring depth sensors, careful calibration, and a persistent metric model of the world maintained over time.
+The classical way to make a robot go somewhere is a pipeline where you build a map with SLAM, localize yourself in it, plan a path, and follow it.
 
-The bet here is that a world model trained on raw experience can replace all of that, so the task is kept deliberately stark. The robot receives its **current camera frame** and a **target image**, and outputs **body-frame velocities**, with no pre-built map, no external localization, no depth sensor, no reward function, and no task demonstrations. The goal arrives at inference time as a photograph, and the model has never been told that goal exists.
+The bet here is that a world model trained on raw experience can replace all of that, so the task is kept deliberately stark. The robot receives its **current camera frame** and a **target image**, and outputs **body-frame velocities**, with no pre-built map, no external localization, no depth sensor, no reward function, and no task demonstrations.
 
 [TODO: optionally a one-line spec box here — camera, 2-D action (forward velocity + yaw rate), goal-as-photo.]
 

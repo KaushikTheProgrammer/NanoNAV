@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NanoNAV — real-robot navigation with Nano World Models</title>
 <meta name="description" content="Latent-space planning with a Nano World Model drives a LeKiwi robot to goal images — learned from 25 minutes of driving, no maps, no depth, no pose.">
-<link rel="stylesheet" href="style.css?v=1781803051">
+<link rel="stylesheet" href="style.css?v=1781803145">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
 <body>
@@ -55,9 +55,9 @@
 
 <h2 id="the-problem-statement">1 · The Problem Statement</h2>
 
-<p>The classical way to make a robot go somewhere is a pipeline where you build a map with SLAM, localize yourself in it, plan a path, and follow it. It works reliably, but it is heavy machinery, requiring depth sensors, careful calibration, and a persistent metric model of the world maintained over time.</p>
+<p>The classical way to make a robot go somewhere is a pipeline where you build a map with SLAM, localize yourself in it, plan a path, and follow it.</p>
 
-<p>The bet here is that a world model trained on raw experience can replace all of that, so the task is kept deliberately stark. The robot receives its <strong>current camera frame</strong> and a <strong>target image</strong>, and outputs <strong>body-frame velocities</strong>, with no pre-built map, no external localization, no depth sensor, no reward function, and no task demonstrations. The goal arrives at inference time as a photograph, and the model has never been told that goal exists.</p>
+<p>The bet here is that a world model trained on raw experience can replace all of that, so the task is kept deliberately stark. The robot receives its <strong>current camera frame</strong> and a <strong>target image</strong>, and outputs <strong>body-frame velocities</strong>, with no pre-built map, no external localization, no depth sensor, no reward function, and no task demonstrations.</p>
 
 <h2 id="robot-hardware">2 · Robot Hardware</h2>
 

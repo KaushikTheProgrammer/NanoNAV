@@ -102,8 +102,8 @@ ax0 = axes[0]
 ax0.set_ylabel('Distance metric value (normalised)', fontsize=10)
 ax0.annotate(
     'gradient ≈ noise floor\nCEM cannot distinguish\ncandidate actions here',
-    xy=(45, vae_true(45)),
-    xytext=(30, vae_true(45) + 6),
+    xy=(50, vae_true(50)),
+    xytext=(50, 6),
     fontsize=8, color='#d94f3f',
     arrowprops=dict(arrowstyle='->', color='#d94f3f', lw=1.1),
     bbox=dict(boxstyle='round,pad=0.3', fc='#fff8f8', ec='#d94f3f', lw=0.8)
