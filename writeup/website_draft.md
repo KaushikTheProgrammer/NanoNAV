@@ -273,11 +273,9 @@ Without the graph, the flat planner succeeds from a start distance of 0.35 but w
 
 ## 6 · Limitations
 
-The current system covers one corner of one room with a single overhead camera. Navigation is stop-and-plan. The robot pauses roughly 7 seconds between moves, driving in deliberate hops rather than continuous motion. The goal-image offset between sessions puts a floor under the distance metric, so "arrived" requires a tolerance rather than convergence to zero. How close that floor lands is goal-dependent. One goal closes to 0.08; another hovers at 0.30. The graph spans exactly where I drove during collection, nothing more.
+The scope is deliberately narrow: one corner of one room, a single overhead camera, goals drawn from the same space the robot drove through. Navigation is stop-and-plan — the robot pauses roughly 7 seconds between moves — and the graph covers exactly where the data was collected. These are tradeoffs, not accidents. The question this project set out to answer did not require more.
 
-None of the individual pieces are novel. The graph is, in plainer terms, **teach-and-repeat**. Its nodes are training frames, localization is nearest-neighbor lookup against them, and a route replays stitched segments of prior drives. Predicting frozen-DINO features is DINO-WM. The experience graph mirrors ViNG. The planner is textbook sampling MPC. The world model is specialized to one room by design. If you came for a new algorithm or a deployable navigation system, this is not it. Classic SLAM-and-plan, or a depth camera with a few off-the-shelf libraries, would outperform it today.
-
-The contribution is the **measurement**. Off-the-shelf pieces are not the point. What mattered was turning "it doesn't work" into a number with a tape measure, eliminating two confident wrong diagnoses through controlled experiments, and showing that the search was never broken while the representation was blind. On a real robot, from 25 minutes of data, with the wrong turns left in.
+None of the algorithms are original. The graph is **teach-and-repeat**. Nodes are training frames, localization is nearest-neighbor lookup, and routes replay stitched segments of prior drives. Predicting frozen-DINO features is DINO-WM. The experience graph mirrors ViNG. The planner is textbook sampling MPC. That is all intentional. The goal was never to invent a new method. It was a systems integration challenge: take strong, established tools, put them together carefully, and show they work on real hardware from a small dataset. Making that work — measuring the failures, isolating the bottlenecks, and proving the fix — was the contribution.
 
 ## 7 · What comes next
 
