@@ -238,14 +238,14 @@ Because the action now multiplicatively controls the scale of the entire feature
 
 The new metric is good for ~40 cm. Beyond that, the goal is out of range and the planner has no signal. If you start 180° rotated from the goal, CEM has nothing to descend. Every frame in the training data is a place the robot demonstrably reached, so the training data becomes the map.
 
-To build it, DINOv2 tokens are cached for ~4,500 frames (one per chunk boundary), each becoming a **node**. **Temporal edges** connect consecutive frames within each episode. **Weld edges** connect frames from different episodes that pass through the same view, detected by token distance. Fifty disconnected episode threads fuse into one connected map.
+To build it, I cached DINOv2 tokens for ~4,500 frames (one per chunk boundary), each becoming a **node**. **Temporal edges** connect consecutive frames within each episode, while **weld edges** connect frames from different episodes that pass through the same view, detected by token distance. Fifty disconnected episode threads fuse into one connected map this way.
 
 At runtime, the live frame is localized against the cache, Dijkstra finds the path to the goal node, and the planner receives the next **waypoint**. The waypoint is always a real remembered frame, about one reach away. CEM only ever sees the local, solvable problem.
 
-Edge thresholds and waypoint spacing are both calibrated from data. The weld threshold comes from inter-frame distance distributions. The waypoint spacing comes from a measured reliability curve where one-step descent succeeds 96% of the time at 2 chunks, falling off beyond that, so waypoints are placed at the 90% reliability point.
+Both the weld threshold and the waypoint spacing are calibrated from data. I set the weld threshold from the inter-frame distance distribution, picking the point that separates same-place views from different-place views. For waypoint spacing, I measured a reliability curve showing that one-step descent succeeds 96% of the time at 2 chunks and falls off beyond that, so I place waypoints at the 90% reliability point.
 
 [FIGURE: ✅ assets/route_montage.png (wide)]
-*A route is a film strip. Dijkstra returns a sequence of remembered frames; the planner chases them one at a time.*
+*A route is a film strip. Dijkstra returns a sequence of remembered frames and the planner chases them one at a time.*
 
 [FIGURE: ✅ assets/subgoal-graph-anim.mp4 — wide, controls]
 *Building and routing the graph. Episodes become nodes, shared views weld threads together, Dijkstra hands the planner one waypoint at a time.*
@@ -256,7 +256,7 @@ Edge thresholds and waypoint spacing are both calibrated from data. The weld thr
 
 **1. The graph must be directed.** First routes sent waypoints backwards along episode threads. This robot doesn't reverse (yet) and data is forward-only. Temporal edges became one-way.
 
-**2. Welds also encode direction.** A weld can silently place a waypoint ~10 cm behind the robot, and tightening the threshold to prevent this collapsed map connectivity. The fix is **motion-parallax certification**: for a weld from frame i to frame j, verify that i's time-successors get closer to j. If they do, j is provably ahead. No new data required. This produced ~17,800 directed welds with 94.5% strong connectivity.
+**2. Welds also encode direction.** A weld can silently place a waypoint ~10 cm behind the robot, and tightening the threshold to prevent this collapsed map connectivity. The fix is **motion-parallax certification**, where for a weld from frame i to frame j I verify that i's time-successors get closer to j. If they do, j is provably ahead. No new data required. This produced ~17,800 directed welds with 94.5% strong connectivity.
 
 **3. Localization and waypoint tuning.** On the robot, localization flip-flopped between look-alike frames in different episodes, causing the route to re-roll every step. The fix was hysteresis, committing to a path and requiring strong evidence before re-routing. Waypoints placed too close gave CEM a nearly-identical target, producing near-zero commands, fixed by enforcing a minimum waypoint spacing.
 
@@ -264,10 +264,10 @@ Edge thresholds and waypoint spacing are both calibrated from data. The weld thr
 
 The robot reached the **nearpurifier** goal in 129 steps along a 40-hop route, with localization tracked the whole way and the metric closing from 0.30 to 0.08. First full end-to-end success.
 
-Without the graph, the flat planner succeeds from a start distance of 0.35 but wanders from 0.45. The graph crosses exactly that threshold.
+Without the graph, the flat planner succeeds from a DINOv2 cosine start distance of 0.35 but wanders from 0.45. The graph crosses exactly that threshold.
 
 [FIGURE: ✅ assets/route_strip_subgoals.png]
-*Live routing view: the planner's current subgoal and the planned chain of waypoints ahead.*
+*Live routing view showing the planner's current subgoal and the planned chain of waypoints ahead.*
 
 [FIGURE: ⏳ on-robot success capture from mpc_semantic_graph_nearpurifier4.rrd — screen-record or trace]
 *[TODO: headline run. A dist-to-goal + graph-distance trace, or a screen recording of the viewer.]*
