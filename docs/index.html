@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NanoNAV — real-robot navigation with Nano World Models</title>
 <meta name="description" content="Latent-space planning with a Nano World Model drives a LeKiwi robot to goal images — learned from 25 minutes of driving, no maps, no depth, no pose.">
-<link rel="stylesheet" href="style.css?v=1781803415">
+<link rel="stylesheet" href="style.css?v=1781803829">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
 <body>
@@ -61,13 +61,16 @@
 
 <h2 id="robot-hardware">2 · Robot Hardware</h2>
 
-<p>The <a href="https://github.com/SIGRobotics-UIUC/LeKiwi"><strong>LeKiwi</strong></a> is an open-source mobile manipulator from the LeRobot ecosystem, built around a low-cost SO-ARM-style arm on a three-omniwheel kiwi drive base, driven by an onboard Raspberry Pi and inexpensive serial-bus servos. For navigation I use only the base, with the arm parked in a fixed pose throughout. The Pi stays light on the robot side, streaming camera frames and accepting velocity commands over the network while the world model itself runs on a rented cloud GPU connected through an SSH tunnel.</p>
+<p>The <a href="https://github.com/SIGRobotics-UIUC/LeKiwi"><strong>LeKiwi</strong></a> is an open-source mobile manipulator from the LeRobot ecosystem, built around a low-cost SO-101 arm on a three-omniwheel kiwi drive base, driven by an onboard Raspberry Pi and inexpensive serial-bus servos. For navigation I use only the base, with the arm parked in a fixed pose throughout. The Pi stays light on the robot side, streaming camera frames and accepting velocity commands over the network while the world model itself runs on a rented cloud GPU connected through an SSH tunnel.</p>
 
 <p>The stock LeKiwi uses a low front-facing webcam, which I replaced with wider-angle USB cameras and supplemented with a <a href="https://www.amazon.com/dp/B0C289GYVZ?ref=ppx_yo2ov_dt_b_product_details&th=1">third overhead camera</a> on a custom mount, angled down at roughly 55°. That overhead vantage is what everything downstream depends on, capturing the scene across four depth zones at once, from the robot's own body and the near floor out to the mid-room objects and far walls.</p>
 
 <p class="note"><em>Hardware at a glance: LeKiwi (LeRobot) · holonomic 3-omniwheel base · SO-ARM arm, parked · Raspberry Pi host · low-cost serial-bus servos · overhead USB camera on a custom ~55° mount. </em></p>
 
-<div class="pending"><b>Pending figure.</b> The rig. The LeKiwi base with the arm parked and the custom mount holding the overhead camera that everything downstream depends on.</div>
+<figure>
+  <img src="assets/lekiwi-mount.jpg" alt="">
+  <figcaption><b>The rig.</b> The LeKiwi base with the arm parked and the custom mount holding the overhead camera that everything downstream depends on.</figcaption>
+</figure>
 
 <h2 id="data">3 · Data</h2>
 
