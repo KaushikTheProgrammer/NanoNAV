@@ -31,7 +31,7 @@
 
 I taught a LeKiwi mobile manipulator to drive to a **photograph**: show it an image taken somewhere in the room, and it finds its way there. The whole stack is learned from **50 tele-operated episodes (~25 minutes, ~45K frames)** through a single overhead camera: a diffusion world model imagines candidate futures, a sampling-based planner picks the actions whose imagined outcome looks most like the goal, and a 4,500-node graph of moments from the training data carries the robot to goals beyond the model's local horizon. No pre-built map, no depth sensor, no external localization.
 
-This post is the full build log, including all of the failures that led to success. These failures tell the full story: a world model that ignored its own actions, two confident wrong diagnoses I had to retract, a latent space that hallucinated, and a route planner that tried to drive the robot backwards. Key finding: **the search was never broken — the objective was blind**, and most of the work was proving that with a tape measure and then fixing it.
+This post is the full build log, including all of the failures that led to success. These failures tell the full story: a world model that ignored its own actions, two confident wrong diagnoses I had to retract, and a route planner that tried to drive the robot backwards. Key finding: **the search was never broken — the objective was blind**, and most of the work was proving that with a tape measure and then fixing it.
 
 ---
 
@@ -101,7 +101,7 @@ The architecture choice worth stating plainly: the perception backbone (the VAE)
 
 Training uses [**Diffusion Forcing**](https://arxiv.org/abs/2407.01392) (Chen et al., 2024): instead of corrupting every frame to one shared noise level, each frame gets its own independent noise level. With causal masking, that's what lets the network roll itself out autoregressively at inference — predict a frame, treat it as clean context, predict the next — which is exactly the loop CEM drives. So the transformer learns to **denoise the next frame's latent** given recent frames and the action chunk (the action enters through a small **additive embedding**). The rest is unremarkable: AdamW, effective batch 64, bf16, ~**12,000 steps on a single rented H100** — an overnight run.
 
-**"But won't 160M parameters on 50 episodes overfit?"** Yes, fast — and it's the wrong worry, for three reasons. Specializing to *this one room* is the goal, not the failure: the frozen backbone carries the cross-scene generalization, so the trained part only learns one room's dynamics. The metric that screams "overfit" — denoising validation loss — is the wrong dial: planning quality keeps *improving* past where val-loss bottoms out (the U-shaped curve next section), so early-stopping on it gives a *worse* planner. And the real tax of tiny data wasn't memorization but **coverage** — crisp where I drove, blurry-to-hallucinatory where I didn't — fixed by more of the room on tape, not regularization, and exactly the failure a few sections from now.
+**"But won't 160M parameters on 50 episodes overfit?"** Yes, fast — and it's the wrong worry, for three reasons. Specializing to *this one room* is the goal, not the failure: the frozen backbone carries the cross-scene generalization, so the trained part only learns one room's dynamics. The metric that screams "overfit" — denoising validation loss — is the wrong dial: planning quality keeps *improving* past where val-loss bottoms out (the U-shaped curve next section), so early-stopping on it gives a *worse* planner. And the real tax of tiny data wasn't memorization but **coverage** — crisp where I drove, blurry and unreliable where I didn't — fixed by more of the room on tape, not regularization, and exactly the failure a few sections from now.
 
 [FIGURE: ✅ assets/long_0_cmp.mp4 — autoplay/loop/muted]
 *Imagined vs. real. Left: a world-model rollout from 4 context frames and a recorded action sequence. Right: what the camera actually saw. It genuinely imagines driving — blurry, but directionally right.*
@@ -222,10 +222,7 @@ $$\text{output} = \gamma(\mathbf{a}) \cdot \text{LayerNorm}(x) + \beta(\mathbf{a
 Because the action now multiplicatively controls the scale of the entire feature map at every layer, the model cannot reduce its influence by tuning a weight toward zero. On the same semantic latents where additive injection collapsed to 0.0028 RMS, AdaLN held at 0.2 RMS.
 
 [FIGURE: ✅ assets/c1_smoke_strip.png]
-*Imagining in semantic space. The world model predicts DINOv2 tokens; a small decoder renders them back to pixels for visualization (the planner scores in token space and never decodes). Soft but correct, and from a previously-hallucinated viewpoint, it stays in the right room.*
-
-[FIGURE: ⏳ hallucination before/after — pull results/hamper_retest_*.png and the old live-distribution-gap montage from the pod]
-*[TODO: same goal frame. Old model snaps to a different room, new model stays put.]*
+*Imagining in semantic space. The world model predicts DINOv2 tokens; a small decoder renders them back to pixels for visualization (the planner scores in token space and never decodes).*
 
 ---
 
