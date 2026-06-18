@@ -201,6 +201,10 @@ The fix was to **retrain the world model to predict frozen DINOv2 patch tokens**
 
 The new score works as follows. DINOv2 divides an image into a grid of small patches and computes a feature vector for each one. Given two images, you compare their corresponding patches using cosine similarity, which measures how aligned two vectors are in direction regardless of magnitude. A value of 1.0 means the patches are semantically identical; 0 means nothing in common. Average those similarities across the whole grid and subtract from 1, so the score is 0 at the goal and grows as the images diverge. No training is needed for any of this. DINOv2 is frozen and pretrained; the score is just arithmetic on the output token grids.
 
+$$\text{score} = 1 - \frac{1}{N} \sum_{i=1}^{N} \cos\!\left(\mathbf{f}_i,\, \mathbf{g}_i\right)$$
+
+*N is the number of patches. **f**_i and **g**_i are the DINOv2 patch token vectors for patch i of the imagined frame and the goal image.*
+
 This is essentially **DINO-WM** (Zhou et al., 2024), arrived at through measurement. Two differences: a generative diffusion-forcing backbone instead of a deterministic predictor, and closed-loop operation on a real robot.
 
 On the robot, the retrained model drove distance down from 0.32 → 0.19, committing from far out where the VAE objective had been flat.
