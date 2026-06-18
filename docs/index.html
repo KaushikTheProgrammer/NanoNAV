@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NanoNAV — real-robot navigation with Nano World Models</title>
 <meta name="description" content="Latent-space planning with a Nano World Model drives a LeKiwi robot to goal images — learned from 25 minutes of driving, no maps, no depth, no pose.">
-<link rel="stylesheet" href="style.css?v=1781757793">
+<link rel="stylesheet" href="style.css?v=1781758353">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
 <body>
@@ -40,13 +40,14 @@
     <li><a href="#data">Data</a></li>
     <li><a href="#the-world-model">The World Model</a></li>
     <li><a href="#road-to-a-working-planner">Road to a working planner</a></li>
-    <li><a href="#honest-limitations-and-part-2">Honest limitations, and part 2</a></li>
+    <li><a href="#limitations">Limitations</a></li>
+    <li><a href="#what-comes-next">What comes next</a></li>
   </ol>
 </nav>
 
 <h2 id="background">Background — why I built this</h2>
 
-<p>I've been fascinated by world model research lately. The field is a collection of competing bets on what the right output is, what the right training signal is, and where the real leverage lies. Dr. Fei-Fei Li describes the current landscape best in <a href="https://www.worldlabs.ai/blog/taxonomy-of-world-models"><strong>A Functional Taxonomy of World Models</strong></a>. She splits them by <em>what they output</em>: a <strong>Renderer</strong> outputs pixels meant for human eyes, where visual fidelity is what matters; a <strong>Simulator</strong> outputs state — a geometrically and physically faithful representation that programs can compute on; and a <strong>Planner</strong> outputs <em>actions</em> — given observations and a goal, it decides what the agent should do next, closing the perception–action loop. She argues these eventually converge into unified models, with simulation as the linchpin.</p>
+<p>I've been fascinated by world model research lately. The field is a collection of competing bets on what the right output is, what the right training signal is, and where the real leverage lies. Dr. Fei-Fei Li describes the current landscape best in <a href="https://www.worldlabs.ai/blog/taxonomy-of-world-models"><strong>A Functional Taxonomy of World Models</strong></a>. She splits them by what they output: a <strong>Renderer</strong> outputs pixels meant for human eyes, where visual fidelity is what matters; a <strong>Simulator</strong> outputs state — a geometrically and physically faithful representation that programs can compute on; and a <strong>Planner</strong> outputs <em>actions</em> — given observations and a goal, it decides what the agent should do next, closing the perception–action loop. She argues these eventually converge into unified models, with simulation as the linchpin.</p>
 
 <p>This project lives squarely in the <strong>Planner</strong> corner of that taxonomy. It is not trying to render a beautiful world or to be a faithful physics engine. The decoded frames are, frankly, blurry. It is trying to use a small, imperfect imagination as the inner loop of a controller: propose an action, imagine its consequence, score that consequence against a goal image, act. The whole story that follows is what happens when you take the Planner ambition seriously on cheap hardware and a small dataset.</p>
 
@@ -285,26 +286,30 @@
 
 <div class="pending"><b>Pending figure.</b> on-robot success capture from mpc_semantic_graph_nearpurifier4.rrd — screen-record or trace</div>
 
-<h2 id="honest-limitations-and-part-2">6 · Honest limitations, and part 2</h2>
+<h2 id="limitations">6 · Limitations</h2>
 
-<p>What this is not: it's one corner of one room, one camera, and stop-and-plan motion — the robot pauses ~7 seconds to think between moves, so it drives in deliberate hops, not smoothly. The goal-image offset between sessions puts a floor under the distance metric, so "arrived" needs a tolerance. Convergence in the final centimeters is goal-dependent — one goal closes to 0.08, another hovers at 0.30. The graph's nodes come from the same data the world model trained on, so the map is exactly as big as where I happened to drive.</p>
+<p>The current system covers one corner of one room with a single overhead camera. Navigation is stop-and-plan. The robot pauses roughly 7 seconds between moves, driving in deliberate hops rather than continuous motion. The goal-image offset between sessions puts a floor under the distance metric, so "arrived" requires a tolerance rather than convergence to zero. How close that floor lands is goal-dependent. One goal closes to 0.08; another hovers at 0.30. The graph spans exactly where I drove during collection, nothing more.</p>
 
-<p>Two honest disclaimers. First, none of the pieces are novel. The blunter name for the graph is <strong>teach-and-repeat</strong>: the nodes <em>are</em> training frames, localization is nearest-neighbor against them, and a route just replays stitched pieces of drives I've already done. Predicting frozen-DINO features is DINO-WM, the experience graph is ViNG, the planner is textbook sampling MPC, and the world model is specialized to one room by design. If you came for a new method or a deployable nav system, this isn't it — and if you needed dependable indoor navigation tomorrow, classic SLAM-and-plan (or a depth camera and a few libraries) would beat it.</p>
+<p>None of the individual pieces are novel. The graph is, in plainer terms, <strong>teach-and-repeat</strong>. Its nodes are training frames, localization is nearest-neighbor lookup against them, and a route replays stitched segments of prior drives. Predicting frozen-DINO features is DINO-WM. The experience graph mirrors ViNG. The planner is textbook sampling MPC. The world model is specialized to one room by design. If you came for a new algorithm or a deployable navigation system, this is not it. Classic SLAM-and-plan, or a depth camera with a few off-the-shelf libraries, would outperform it today.</p>
 
-<p>The claim isn't the system — it's the <strong>measurement</strong>. The bricks are off the shelf; the contribution is the debugging: turning "it doesn't work" into a number with a tape measure, killing two confident wrong diagnoses with controlled experiments, and showing the search was never broken while the <em>representation</em> was blind — on a real robot, from 25 minutes of data, with the wrong turns left in.</p>
+<p>The contribution is the <strong>measurement</strong>. Off-the-shelf pieces are not the point. What mattered was turning "it doesn't work" into a number with a tape measure, eliminating two confident wrong diagnoses through controlled experiments, and showing that the search was never broken while the representation was blind. On a real robot, from 25 minutes of data, with the wrong turns left in.</p>
 
-<p>But consider what 25 minutes of driving bought: a robot that drives to a photograph across a room it has no map of, using a world model small enough to train overnight, a distance metric that costs zero training, and a graph built offline in minutes. The architecture that emerged is three layers, each keeping the next inside its comfort zone — a <strong>graph</strong> (topological memory, routes the room) feeding <strong>CEM + world model</strong> (the local planner, ~40 cm of vision), with a <strong>visual-servo endgame</strong> (the final centimeters) as the named next piece.</p>
+<h2 id="what-comes-next">7 · What comes next</h2>
 
-<p><strong>Part 2</strong> is the obvious continuation: recollect the full room (more coverage, multiple cameras, and reverse driving — which literally adds edges to the graph); a visual-servo final approach that can strafe and reverse because it bypasses the world model entirely; and an inference speedup from ~7 s toward ~1 s to make the motion continuous.</p>
+<p>The most immediate constraint is coverage. Collecting more trajectories around the room adds nodes and edges to the graph. Multiple cameras would widen the field of view. Reverse driving adds backward edges without retraining. A visual-servo final approach that can strafe and reverse, bypassing the world model entirely, would handle the last centimeters more reliably than CEM. Faster inference, from roughly 7 s toward 1 s per step, would make motion continuous rather than hop-by-hop.</p>
 
-<p>The lessons, each earned above and worth saying plainly:</p>
+<p>The broader architecture already has a natural three-layer shape. A graph handles topological memory and long-range routing. CEM and the world model handle local planning across roughly 40 cm of horizon. A visual-servo endgame handles the final approach. Each layer keeps the next one inside its comfort zone.</p>
+
+<p>What 25 minutes of driving produced: a robot that navigates to a photograph across a room it has never explicitly mapped, using a world model small enough to train overnight, a distance metric requiring no additional training, and a graph built offline in minutes.</p>
+
+<p>The lessons, each earned above:</p>
 
 <ul>
   <li><strong>The objective is part of the planner.</strong> The search was never broken; the metric was blind.</li>
   <li><strong>Make the bottleneck a number before you change the architecture.</strong> One afternoon with a tape measure redirected the whole project.</li>
   <li><strong>Judge a world model by its rollouts, not its validation loss.</strong></li>
-  <li><strong>Topology is cheaper than capability:</strong> a graph fixed what no planning knob could.</li>
-  <li><strong>Your map encodes your robot's physics:</strong> no reverse means a directed graph.</li>
+  <li><strong>Topology is cheaper than capability.</strong> A graph fixed what no planning knob could.</li>
+  <li><strong>Your map encodes your robot's physics.</strong> No reverse means a directed graph.</li>
 </ul>
 
 <hr>

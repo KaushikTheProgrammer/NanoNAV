@@ -37,7 +37,7 @@ This post is the full build log, including all of the failures that led to succe
 
 ## Background — why I built this
 
-I've been fascinated by world model research lately. The field is a collection of competing bets on what the right output is, what the right training signal is, and where the real leverage lies. Dr. Fei-Fei Li describes the current landscape best in [**A Functional Taxonomy of World Models**](https://www.worldlabs.ai/blog/taxonomy-of-world-models). She splits them by *what they output*: a **Renderer** outputs pixels meant for human eyes, where visual fidelity is what matters; a **Simulator** outputs state — a geometrically and physically faithful representation that programs can compute on; and a **Planner** outputs *actions* — given observations and a goal, it decides what the agent should do next, closing the perception–action loop. She argues these eventually converge into unified models, with simulation as the linchpin.
+I've been fascinated by world model research lately. The field is a collection of competing bets on what the right output is, what the right training signal is, and where the real leverage lies. Dr. Fei-Fei Li describes the current landscape best in [**A Functional Taxonomy of World Models**](https://www.worldlabs.ai/blog/taxonomy-of-world-models). She splits them by what they output: a **Renderer** outputs pixels meant for human eyes, where visual fidelity is what matters; a **Simulator** outputs state — a geometrically and physically faithful representation that programs can compute on; and a **Planner** outputs *actions* — given observations and a goal, it decides what the agent should do next, closing the perception–action loop. She argues these eventually converge into unified models, with simulation as the linchpin.
 
 This project lives squarely in the **Planner** corner of that taxonomy. It is not trying to render a beautiful world or to be a faithful physics engine. The decoded frames are, frankly, blurry. It is trying to use a small, imperfect imagination as the inner loop of a controller: propose an action, imagine its consequence, score that consequence against a goal image, act. The whole story that follows is what happens when you take the Planner ambition seriously on cheap hardware and a small dataset.
 
@@ -271,25 +271,29 @@ Without the graph, the flat planner succeeds from a start distance of 0.35 but w
 
 ---
 
-## 6 · Honest limitations, and part 2
+## 6 · Limitations
 
-What this is not: it's one corner of one room, one camera, and stop-and-plan motion — the robot pauses ~7 seconds to think between moves, so it drives in deliberate hops, not smoothly. The goal-image offset between sessions puts a floor under the distance metric, so "arrived" needs a tolerance. Convergence in the final centimeters is goal-dependent — one goal closes to 0.08, another hovers at 0.30. The graph's nodes come from the same data the world model trained on, so the map is exactly as big as where I happened to drive.
+The current system covers one corner of one room with a single overhead camera. Navigation is stop-and-plan. The robot pauses roughly 7 seconds between moves, driving in deliberate hops rather than continuous motion. The goal-image offset between sessions puts a floor under the distance metric, so "arrived" requires a tolerance rather than convergence to zero. How close that floor lands is goal-dependent. One goal closes to 0.08; another hovers at 0.30. The graph spans exactly where I drove during collection, nothing more.
 
-Two honest disclaimers. First, none of the pieces are novel. The blunter name for the graph is **teach-and-repeat**: the nodes *are* training frames, localization is nearest-neighbor against them, and a route just replays stitched pieces of drives I've already done. Predicting frozen-DINO features is DINO-WM, the experience graph is ViNG, the planner is textbook sampling MPC, and the world model is specialized to one room by design. If you came for a new method or a deployable nav system, this isn't it — and if you needed dependable indoor navigation tomorrow, classic SLAM-and-plan (or a depth camera and a few libraries) would beat it.
+None of the individual pieces are novel. The graph is, in plainer terms, **teach-and-repeat**. Its nodes are training frames, localization is nearest-neighbor lookup against them, and a route replays stitched segments of prior drives. Predicting frozen-DINO features is DINO-WM. The experience graph mirrors ViNG. The planner is textbook sampling MPC. The world model is specialized to one room by design. If you came for a new algorithm or a deployable navigation system, this is not it. Classic SLAM-and-plan, or a depth camera with a few off-the-shelf libraries, would outperform it today.
 
-The claim isn't the system — it's the **measurement**. The bricks are off the shelf; the contribution is the debugging: turning "it doesn't work" into a number with a tape measure, killing two confident wrong diagnoses with controlled experiments, and showing the search was never broken while the *representation* was blind — on a real robot, from 25 minutes of data, with the wrong turns left in.
+The contribution is the **measurement**. Off-the-shelf pieces are not the point. What mattered was turning "it doesn't work" into a number with a tape measure, eliminating two confident wrong diagnoses through controlled experiments, and showing that the search was never broken while the representation was blind. On a real robot, from 25 minutes of data, with the wrong turns left in.
 
-But consider what 25 minutes of driving bought: a robot that drives to a photograph across a room it has no map of, using a world model small enough to train overnight, a distance metric that costs zero training, and a graph built offline in minutes. The architecture that emerged is three layers, each keeping the next inside its comfort zone — a **graph** (topological memory, routes the room) feeding **CEM + world model** (the local planner, ~40 cm of vision), with a **visual-servo endgame** (the final centimeters) as the named next piece.
+## 7 · What comes next
 
-**Part 2** is the obvious continuation: recollect the full room (more coverage, multiple cameras, and reverse driving — which literally adds edges to the graph); a visual-servo final approach that can strafe and reverse because it bypasses the world model entirely; and an inference speedup from ~7 s toward ~1 s to make the motion continuous.
+The most immediate constraint is coverage. Collecting more trajectories around the room adds nodes and edges to the graph. Multiple cameras would widen the field of view. Reverse driving adds backward edges without retraining. A visual-servo final approach that can strafe and reverse, bypassing the world model entirely, would handle the last centimeters more reliably than CEM. Faster inference, from roughly 7 s toward 1 s per step, would make motion continuous rather than hop-by-hop.
 
-The lessons, each earned above and worth saying plainly:
+The broader architecture already has a natural three-layer shape. A graph handles topological memory and long-range routing. CEM and the world model handle local planning across roughly 40 cm of horizon. A visual-servo endgame handles the final approach. Each layer keeps the next one inside its comfort zone.
+
+What 25 minutes of driving produced: a robot that navigates to a photograph across a room it has never explicitly mapped, using a world model small enough to train overnight, a distance metric requiring no additional training, and a graph built offline in minutes.
+
+The lessons, each earned above:
 
 - **The objective is part of the planner.** The search was never broken; the metric was blind.
 - **Make the bottleneck a number before you change the architecture.** One afternoon with a tape measure redirected the whole project.
 - **Judge a world model by its rollouts, not its validation loss.**
-- **Topology is cheaper than capability:** a graph fixed what no planning knob could.
-- **Your map encodes your robot's physics:** no reverse means a directed graph.
+- **Topology is cheaper than capability.** A graph fixed what no planning knob could.
+- **Your map encodes your robot's physics.** No reverse means a directed graph.
 
 ---
 
