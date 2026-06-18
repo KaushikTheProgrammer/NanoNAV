@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NanoNAV — real-robot navigation with Nano World Models</title>
 <meta name="description" content="Latent-space planning with a Nano World Model drives a LeKiwi robot to goal images — learned from 25 minutes of driving, no maps, no depth, no pose.">
-<link rel="stylesheet" href="style.css?v=1781759506">
+<link rel="stylesheet" href="style.css?v=1781802436">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
 <body>
@@ -26,9 +26,7 @@
 
 <div class="tldr">
   <span class="label">TL;DR</span>
-  I taught a LeKiwi mobile manipulator to drive to a <strong>photograph</strong>: show it an image taken somewhere in the room, and it finds its way there. The whole stack is learned from <strong>50 tele-operated episodes (~25 minutes, ~45K frames)</strong> through a single overhead camera: a diffusion world model imagines candidate futures, a sampling-based planner picks the actions whose imagined outcome looks most like the goal, and a 4,500-node graph of moments from the training data carries the robot to goals beyond the model's local horizon. No pre-built map, no depth sensor, no external localization.
-  <br><br>
-  This post is the full build log, including all of the failures that led to success. These failures tell the full story: a world model that ignored its own actions, two confident wrong diagnoses I had to retract, and a route planner that tried to drive the robot backwards. Key finding: <strong>the search was never broken — the objective was blind</strong>, and most of the work was proving that with a tape measure and then fixing it.
+  I taught a LeKiwi mobile manipulator to drive to a <strong>photograph</strong>: show it an image taken somewhere in the room, and it finds its way there. The whole stack is learned from <strong>50 teleoperated episodes (~25 minutes, ~45K frames)</strong> through a single overhead camera: a diffusion world model imagines candidate futures, a sampling-based planner picks the actions whose imagined outcome looks most like the goal, and a 4,500-node graph of moments from the training data carries the robot to goals beyond the model's local horizon.
 </div>
 
 <nav class="toc">
@@ -47,13 +45,13 @@
 
 <h2 id="background">Background — why I built this</h2>
 
-<p>I've been fascinated by world model research lately. The field is a collection of competing bets on what the right output is, what the right training signal is, and where the real leverage lies. Dr. Fei-Fei Li describes the current landscape best in <a href="https://www.worldlabs.ai/blog/taxonomy-of-world-models"><strong>A Functional Taxonomy of World Models</strong></a>. She splits them by what they output: a <strong>Renderer</strong> outputs pixels meant for human eyes, where visual fidelity is what matters; a <strong>Simulator</strong> outputs state — a geometrically and physically faithful representation that programs can compute on; and a <strong>Planner</strong> outputs <em>actions</em> — given observations and a goal, it decides what the agent should do next, closing the perception–action loop. She argues these eventually converge into unified models, with simulation as the linchpin.</p>
+<p>I've been fascinated by world model research lately. The field is a collection of competing bets on what the right output is, what the right training signal is, and where the real leverage lies. Dr. Fei-Fei Li describes the current landscape best in <a href="https://www.worldlabs.ai/blog/taxonomy-of-world-models"><strong>A Functional Taxonomy of World Models</strong></a>. She organizes them by what they output. A <strong>Renderer</strong> outputs pixels meant for human eyes, where visual fidelity is what matters. A <strong>Simulator</strong> outputs state, a geometrically and physically faithful representation that programs can compute on. A <strong>Planner</strong> outputs <em>actions</em>. Given observations and a goal, it decides what the agent should do next, closing the perception–action loop. She argues these eventually converge into unified models, with simulation as the linchpin.</p>
 
-<p>This project lives squarely in the <strong>Planner</strong> corner of that taxonomy. It is not trying to render a beautiful world or to be a faithful physics engine. The decoded frames are, frankly, blurry. It is trying to use a small, imperfect imagination as the inner loop of a controller: propose an action, imagine its consequence, score that consequence against a goal image, act. The whole story that follows is what happens when you take the Planner ambition seriously on cheap hardware and a small dataset.</p>
+<p>This project lives squarely in the <strong>Planner</strong> corner of that taxonomy. It is not trying to render a beautiful world or to be a faithful physics engine. The decoded frames are, frankly, blurry. It is trying to use a small, imperfect imagination as the inner loop of a controller. Propose an action, imagine its consequence, score that consequence against a goal image, act. The whole story that follows is what happens when you take the Planner ambition seriously on cheap hardware and a small dataset.</p>
 
-<p>I was inspired by <a href="https://arxiv.org/abs/2605.23993"><strong>Nano World Models</strong></a> (Huang et al., 2026), a minimalist, diffusion-forcing world-model codebase released recently. The authors remark that "the broader research community still lacks compact, reproducible, and easily extensible implementations" of modern world models and set out to change that. More than the code, that framing is what grabbed me: a call to <em>democratize</em> world-model research, to show the ideas don't require a frontier lab's compute or data to be worth building on. That resonated, and it set the constraint that defines everything here: do this small.</p>
+<p>I was inspired by <a href="https://arxiv.org/abs/2605.23993"><strong>Nano World Models</strong></a> (Huang et al., 2026), a minimalist, diffusion-forcing world-model codebase released recently. The authors remark that "the broader research community still lacks compact, reproducible, and easily extensible implementations" of modern world models and set out to change that. More than the code, that framing is what grabbed me. It was a call to <em>democratize</em> world-model research, to show the ideas don't require a frontier lab's compute or data to be worth building on. That resonated, and it set the constraint that defines everything here. Do this small.</p>
 
-<p>The Nano World Models project evaluates across three domains: simple control environments, game simulation, and <strong>real-robot data (RT-1)</strong>. If the recipe held on real robot data at that scale, it might hold on <em>mine</em>. And I had the robot: a <strong>LeKiwi</strong> left over from earlier imitation-learning work. So the plan was simple: collect my own data, train a nano-scale world model on it, and see if I could plan with it on the real machine.</p>
+<p>The Nano World Models project evaluates across simple control environments, game simulation, and <strong>real-robot data (RT-1)</strong>. If the recipe held on real robot data at that scale, it might hold on <em>mine</em>. And I had the robot. A <strong>LeKiwi</strong> left over from earlier imitation-learning work. So the plan was simple. Collect my own data, train a nano-scale world model on it, and see if I could plan with it on the real machine.</p>
 
 <h2 id="the-problem-statement">1 · The Problem Statement</h2>
 
