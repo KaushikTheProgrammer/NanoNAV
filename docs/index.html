@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NanoNAV — real-robot navigation with Nano World Models</title>
 <meta name="description" content="Latent-space planning with a Nano World Model drives a LeKiwi robot to goal images — learned from 25 minutes of driving, no maps, no depth, no pose.">
-<link rel="stylesheet" href="style.css?v=1781816293">
+<link rel="stylesheet" href="style.css?v=1781819856">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
 <body>
@@ -147,11 +147,16 @@
 
 <h3>Does translation exist in the latent?</h3>
 
-<p>If the frame interval is too short, each step barely moves the scene and the action signal drowns in noise. I chose to test this on the recorded frames without retraining, by encoding them and holding rotation near zero. This allowed me to compare stationary chunks against pure-translation chunks directly. Translation AUC was <strong>0.94–0.98</strong>, confirming the signal was there and the frame interval just needed to be wider.</p>
+<p>If the frame interval is too short, each step barely moves the scene and the action signal drowns in noise. Rather than retrain, I tested this directly on the recorded frames by encoding them at f=5 and f=10, holding rotation near zero, and comparing stationary chunks against pure-translation chunks. At f=5 the distributions overlap significantly (AUC=0.942, SNR=2.57σ). At f=10 they separate cleanly (AUC=0.978, SNR=4.15σ), confirming the signal was there and the stride just needed to be wider. <strong>AUC</strong> measures how separable two distributions are: 0.5 means a classifier drawing from both does no better than random, and 1.0 means they are perfectly separable. <strong>SNR</strong> is the gap between the two distribution means expressed in standard deviations, where higher means a cleaner separation.</p>
+
+<figure>
+  <img src="assets/stationary_latent_compare_f05.png" alt="">
+  <figcaption><b>At f=5 (167 ms), stationary and translation distributions overlap heavily.</b> The near-floor parallax signal is there but buried.</figcaption>
+</figure>
 
 <figure>
   <img src="assets/stationary_latent_compare.png" alt="">
-  <figcaption><b>Where motion lives in the latent.</b> Translation lights up the near-field floor (parallax) and rotation lights up the far horizon (the FOV sweeping). The robot's own body stays put, a built-in registration check.</figcaption>
+  <figcaption><b>At f=10 (333 ms), the distributions separate cleanly.</b> Translation lights up the near-field floor and rotation lights up the far horizon. The robot's own body stays put, acting as a built-in registration check.</figcaption>
 </figure>
 
 <h3>Run 002</h3>

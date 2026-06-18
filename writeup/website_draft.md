@@ -142,10 +142,13 @@ This first model was trained on a frame interval of f=5 (~167 ms chunks). It fai
 
 ### Does translation exist in the latent?
 
-If the frame interval is too short, each step barely moves the scene and the action signal drowns in noise. I chose to test this on the recorded frames without retraining, by encoding them and holding rotation near zero. This allowed me to compare stationary chunks against pure-translation chunks directly. Translation AUC was **0.94–0.98**, confirming the signal was there and the frame interval just needed to be wider.
+If the frame interval is too short, each step barely moves the scene and the action signal drowns in noise. Rather than retrain, I tested this directly on the recorded frames by encoding them at f=5 and f=10, holding rotation near zero, and comparing stationary chunks against pure-translation chunks. At f=5 the distributions overlap significantly (AUC=0.942, SNR=2.57σ). At f=10 they separate cleanly (AUC=0.978, SNR=4.15σ), confirming the signal was there and the stride just needed to be wider. **AUC** measures how separable two distributions are: 0.5 means a classifier drawing from both does no better than random, and 1.0 means they are perfectly separable. **SNR** is the gap between the two distribution means expressed in standard deviations, where higher means a cleaner separation.
+
+[FIGURE: ✅ assets/stationary_latent_compare_f05.png]
+*At f=5 (167 ms), stationary and translation distributions overlap heavily. The near-floor parallax signal is there but buried.*
 
 [FIGURE: ✅ assets/stationary_latent_compare.png]
-*Where motion lives in the latent. Translation lights up the near-field floor (parallax) and rotation lights up the far horizon (the FOV sweeping). The robot's own body stays put, a built-in registration check.*
+*At f=10 (333 ms), the distributions separate cleanly. Translation lights up the near-field floor and rotation lights up the far horizon. The robot's own body stays put, acting as a built-in registration check.*
 
 ---
 
