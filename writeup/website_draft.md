@@ -209,9 +209,17 @@ This is essentially **DINO-WM** (Zhou et al., 2024), arrived at through measurem
 
 On the robot, the retrained model drove distance down from 0.32 → 0.19, committing from far out where the VAE objective had been flat.
 
-One practical note: DINOv2 tokens are not directly human-readable. To watch the model think, a small **token-to-RGB decoder** was trained separately on the same episodes — it learns to map predicted token grids back to approximate pixel frames. The planner itself never uses it; it scores entirely in token space. The decoder exists purely for visualization, and is what produces the filmstrip figures in this post.
+One practical note: DINOv2 tokens are not directly human-readable. To watch the model think, a small **token-to-RGB decoder** was trained separately to map predicted token grids back to approximate pixel frames. The planner itself never uses it; it scores entirely in token space. The decoder exists purely for visualization, and is what produces the filmstrip figures in this post.
 
-The retrain also answered the Run 001 question. The dead action wasn't an inherent incompatibility with semantic latents — it was the injection method. Additive injection adds the action as a small residual to each latent; with a strong semantic signal already dominating, the model learns to ignore it (RMS atrophied to 0.0028). AdaLN injection has the action modulate the scale and shift of the entire feature map, a stronger signal the model can't as easily tune out. On the same semantic latents, AdaLN held at 0.2 RMS.
+The retrain also answered the Run 001 question. The dead action was not an inherent incompatibility with semantic latents. It was the injection method.
+
+**Additive injection** adds the action embedding as a residual to each transformer layer. The model can neutralize that influence by learning to make the residual contribution small. With a strong semantic signal already dominating the latents, that is exactly what happened, and the action embedding RMS atrophied to 0.0028.
+
+**AdaLN injection** (Adaptive Layer Normalization) works differently. Standard LayerNorm normalizes activations and applies a fixed learned scale $\gamma$ and shift $\beta$. AdaLN instead predicts those values dynamically from the conditioning signal, in this case the action embedding $\mathbf{a}$.
+
+$$\text{output} = \gamma(\mathbf{a}) \cdot \text{LayerNorm}(x) + \beta(\mathbf{a})$$
+
+Because the action now multiplicatively controls the scale of the entire feature map at every layer, the model cannot reduce its influence by tuning a weight toward zero. On the same semantic latents where additive injection collapsed to 0.0028 RMS, AdaLN held at 0.2 RMS.
 
 [FIGURE: ✅ assets/c1_smoke_strip.png]
 *Imagining in semantic space. The world model predicts DINOv2 tokens; a small decoder renders them back to pixels for visualization (the planner scores in token space and never decodes). Soft but correct, and from a previously-hallucinated viewpoint, it stays in the right room.*
