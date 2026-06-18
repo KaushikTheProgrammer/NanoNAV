@@ -233,7 +233,7 @@ Because the action now multiplicatively controls the scale of the entire feature
 
 ### Building a waypoint graph
 
-The new metric is good for ~40 cm. Beyond that, the goal is out of range and the planner has no signal — start 180° rotated from the goal and CEM has nothing to descend. Every frame in the training data is a place the robot demonstrably reached, so the training data becomes the map.
+The new metric is good for ~40 cm. Beyond that, the goal is out of range and the planner has no signal. If you start 180° rotated from the goal, CEM has nothing to descend. Every frame in the training data is a place the robot demonstrably reached, so the training data becomes the map.
 
 To build it, DINOv2 tokens are cached for ~4,500 frames (one per chunk boundary), each becoming a **node**. **Temporal edges** connect consecutive frames within each episode. **Weld edges** connect frames from different episodes that pass through the same view, detected by token distance. Fifty disconnected episode threads fuse into one connected map.
 
@@ -256,6 +256,8 @@ Edge thresholds and waypoint spacing are both calibrated from data. The weld thr
 **2. Welds also encode direction.** A weld can silently place a waypoint ~10 cm behind the robot, and tightening the threshold to prevent this collapsed map connectivity. The fix is **motion-parallax certification**: for a weld from frame i to frame j, verify that i's time-successors get closer to j. If they do, j is provably ahead. No new data required. This produced ~17,800 directed welds with 94.5% strong connectivity.
 
 **3. Localization and waypoint tuning.** On the robot, localization flip-flopped between look-alike frames in different episodes, causing the route to re-roll every step. The fix was hysteresis: commit to a path and require strong evidence before re-routing. Waypoints placed too close gave CEM a nearly-identical target, producing near-zero commands, fixed by enforcing a minimum waypoint spacing.
+
+[FIGURE: ⏳ TODO — insert additional on-robot success run videos here (e.g. screen recordings or .rrd traces of multiple goal-reach runs)]
 
 **REACHED nearpurifier.** 129 steps, 40-hop route, localization tracked the whole way, metric closed 0.30 → 0.08. First full end-to-end run on the robot.
 

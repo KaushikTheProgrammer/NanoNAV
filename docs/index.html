@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NanoNAV — real-robot navigation with Nano World Models</title>
 <meta name="description" content="Latent-space planning with a Nano World Model drives a LeKiwi robot to goal images — learned from 25 minutes of driving, no maps, no depth, no pose.">
-<link rel="stylesheet" href="style.css?v=1781755233">
+<link rel="stylesheet" href="style.css?v=1781757793">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
 <body>
@@ -246,7 +246,7 @@
 
 <h3>Building a waypoint graph</h3>
 
-<p>The new metric is good for ~40 cm. Beyond that, the goal is out of range and the planner has no signal — start 180° rotated from the goal and CEM has nothing to descend. Every frame in the training data is a place the robot demonstrably reached, so the training data becomes the map.</p>
+<p>The new metric is good for ~40 cm. Beyond that, the goal is out of range and the planner has no signal. If you start 180° rotated from the goal, CEM has nothing to descend. Every frame in the training data is a place the robot demonstrably reached, so the training data becomes the map.</p>
 
 <p>To build it, DINOv2 tokens are cached for ~4,500 frames (one per chunk boundary), each becoming a <strong>node</strong>. <strong>Temporal edges</strong> connect consecutive frames within each episode. <strong>Weld edges</strong> connect frames from different episodes that pass through the same view, detected by token distance. Fifty disconnected episode threads fuse into one connected map.</p>
 
@@ -271,6 +271,8 @@
 <p><strong>2. Welds also encode direction.</strong> A weld can silently place a waypoint ~10 cm behind the robot, and tightening the threshold to prevent this collapsed map connectivity. The fix is <strong>motion-parallax certification</strong>: for a weld from frame i to frame j, verify that i's time-successors get closer to j. If they do, j is provably ahead. No new data required. This produced ~17,800 directed welds with 94.5% strong connectivity.</p>
 
 <p><strong>3. Localization and waypoint tuning.</strong> On the robot, localization flip-flopped between look-alike frames in different episodes, causing the route to re-roll every step. The fix was hysteresis: commit to a path and require strong evidence before re-routing. Waypoints placed too close gave CEM a nearly-identical target, producing near-zero commands, fixed by enforcing a minimum waypoint spacing.</p>
+
+<div class="pending"><b>Pending figure.</b> TODO — insert additional on-robot success run videos here (e.g. screen recordings or .rrd traces of multiple goal-reach runs)</div>
 
 <p><strong>REACHED nearpurifier.</strong> 129 steps, 40-hop route, localization tracked the whole way, metric closed 0.30 → 0.08. First full end-to-end run on the robot.</p>
 
