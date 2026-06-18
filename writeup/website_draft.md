@@ -68,9 +68,9 @@ The stock LeKiwi uses a low front-facing webcam, which I replaced with wider-ang
 
 ## 3 · Data
 
-The most important constraint on data collection was what the model actually needs to learn. At inference time the [planner](#road-to-a-working-planner) proposes dozens of candidate action sequences, including bad ones, and the world model has to predict what each would produce in order to rank them. Training only on clean, goal-directed demonstrations would leave the model blind to wrong actions and unable to help the planner reject them. So the collection goal was coverage, not demonstration: fill the space, vary headings, and make sure the model has seen the consequences of turning the wrong way.
+The most important constraint on data collection was what the model actually needs to learn. At inference time the [planner](#road-to-a-working-planner) proposes dozens of candidate action sequences, including bad ones, and the world model has to predict what each would produce in order to rank them. Training only on clean, goal-directed demonstrations would leave the model blind to wrong actions and unable to help the planner reject them. So the collection goal was coverage, not demonstration: fill the space, vary headings, and make sure the model has seen the consequences of driving in different directions.
 
-Collection was entirely manual, using **LeRobot's `record` pipeline** to timestamp and synchronize the overhead camera with commanded base velocities at 30 Hz. For teleoperation, a PS5 DualSense connected over USB drove forward velocity on the left stick and yaw rate on the right, with no strafe binding so sideways velocity is zero by construction.
+Collection was entirely manual, using **LeRobot's `record` pipeline** to timestamp and synchronize the overhead camera with commanded base velocities at 30 Hz. For teleoperation, I connected a PS5 DualSense over USB to drive forward velocity on the left stick and yaw rate on the right, with no strafe binding so sideways velocity is zero by construction.
 
 [FIGURE: 🆕 assets/ps5-controller.jpg — photo of the PS5 DualSense used for teleoperation]
 *The full data-collection rig. A PS5 DualSense over USB mapped to forward velocity and yaw rate. 25 minutes of driving with this produced the entire dataset.*
@@ -82,7 +82,7 @@ The resulting dataset is **50 teleoperated episodes, 44,926 frames at 30 Hz**, a
 
 ### Dead reckoning the action space
 
-The robot is controlled with two floats, forward velocity and yaw rate, but I don't hand those directly to the model. Instead I **dead-reckon** them, integrating each short window of about five control steps (~167 ms) into a single body-frame pose change, a displacement **(Δx, Δθ)** chunk. This representation has a few key advantages.
+The robot is controlled with two floats, forward velocity and yaw rate, but I don't hand those directly to the model. Instead I **dead-reckon** them, integrating each short window of about five control steps (~167 ms) into a single body-frame pose change, a displacement **(Δx, Δθ)** chunk. This representation has a few key advantages:
 
 - It's a **body-frame** displacement, so "drive forward 5 cm" is the same vector `(0.05, 0)` no matter which way the robot is facing, giving the model heading invariance rather than requiring it to learn it.
 - It's **low-dimensional**, keeping the planner's search small.
@@ -97,15 +97,13 @@ Dead reckoning assumes **no significant slip**, meaning a commanded centimeter i
 
 ## 4 · The World Model
 
-The world model I used is **NanoWM**, a ~160M-parameter diffusion-forcing transformer. It does not work in pixels directly, but instead in a compressed *latent* space (initially a frozen Stable-Diffusion VAE). Given a few context frames and a candidate action chunk, it predicts a latent future frame. Stack those predictions and you get a *rollout*: a short imagined sequence of what latent driving would look like.
+The world model I used is **NanoWM**, a ~160M-parameter diffusion-forcing transformer. It does not work in pixels directly, but instead in a compressed *latent* space through a frozen Stable-Diffusion VAE. Given a few context frames and a candidate action chunk, it predicts a latent future frame. Stack those predictions and you get a *rollout*, a short imagined sequence of what latent driving would look like.
 
-One critical knob is the **frame interval**, the temporal stride between the frames the model is trained to connect. Too short and each step barely moves the scene, so the action signal is swamped by noise; too long and the prediction gets hard. I return to this parameter in later sections.
+One critical knob is the **frame interval**, the temporal stride between the frames the model is trained to connect. Too short and each step barely moves the scene, leaving the action signal swamped by noise. Too long and the prediction itself becomes hard. I return to this parameter in later sections.
 
-The architecture choice worth stating plainly: the perception backbone (the VAE) is **frozen and pretrained**; the 160M transformer is trained **from scratch** on my 50 episodes. So this is a scene-specific latent dynamics model riding on a general perceptual backbone — it learns the physics of *this* room, and generalizes to new trajectories and goals within it, not across environments.
+The key architecture choice is that the perception backbone, the VAE, is **frozen and pretrained**, while the 160M transformer is trained **from scratch** on my 50 episodes. This makes it a scene-specific latent dynamics model riding on a general perceptual backbone. It learns the physics of *this* room and generalizes to new trajectories and goals within it, not across environments.
 
-Training uses [**Diffusion Forcing**](https://arxiv.org/abs/2407.01392) (Chen et al., 2024): instead of corrupting every frame to one shared noise level, each frame gets its own independent noise level. With causal masking, that's what lets the network roll itself out autoregressively at inference — predict a frame, treat it as clean context, predict the next — which is exactly the loop CEM drives. So the transformer learns to **denoise the next frame's latent** given recent frames and the action chunk (the action enters through a small **additive embedding**). The rest is unremarkable: AdamW, effective batch 64, bf16, ~**12,000 steps on a single rented H100** — an overnight run.
-
-**"But won't 160M parameters on 50 episodes overfit?"** Yes, fast — and it's the wrong worry, for three reasons. Specializing to *this one room* is the goal, not the failure: the frozen backbone carries the cross-scene generalization, so the trained part only learns one room's dynamics. The metric that screams "overfit" — denoising validation loss — is the wrong dial: planning quality keeps *improving* past where val-loss bottoms out (the U-shaped curve next section), so early-stopping on it gives a *worse* planner. And the real tax of tiny data wasn't memorization but **coverage** — crisp where I drove, blurry and unreliable where I didn't — fixed by more of the room on tape, not regularization, and exactly the failure a few sections from now.
+Training uses [**Diffusion Forcing**](https://arxiv.org/abs/2407.01392) (Chen et al., 2024), which instead of corrupting every frame to one shared noise level, gives each frame its own independent noise level. With causal masking, this lets the network roll itself out autoregressively at inference, predicting a frame, treating it as clean context, and using that to predict the next, which is exactly the loop CEM drives. The transformer learns to **denoise the next frame's latent** given recent frames and the action chunk, with the action entering through a small **additive embedding**. Training ran for roughly **12,000 steps on a single rented H100** using AdamW with effective batch 64 in bf16, completing in a single overnight run.
 
 [FIGURE: ✅ assets/long_0_cmp.mp4 — autoplay/loop/muted]
 *Imagined vs. real. Left: a world-model rollout from 4 context frames and a recorded action sequence. Right: what the camera actually saw. It genuinely imagines driving — blurry, but directionally right.*
