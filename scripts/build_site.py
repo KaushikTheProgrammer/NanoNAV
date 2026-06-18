@@ -103,13 +103,14 @@ SCRIPT = """<script>
 
 // Theme toggle — cycles cream → gray → dark, persists via localStorage
 (function () {
-  var themes = ['cream', 'gray', 'dark'];
+  var themes = ['cream', 'gray', 'slate', 'dark'];
   var saved = localStorage.getItem('nanovnav-theme') || 'cream';
 
   function apply(theme) {
-    document.body.classList.remove('theme-gray', 'theme-dark');
-    if (theme === 'gray') document.body.classList.add('theme-gray');
-    if (theme === 'dark') document.body.classList.add('theme-dark');
+    document.body.classList.remove('theme-gray', 'theme-slate', 'theme-dark');
+    if (theme === 'gray')  document.body.classList.add('theme-gray');
+    if (theme === 'slate') document.body.classList.add('theme-slate');
+    if (theme === 'dark')  document.body.classList.add('theme-dark');
     btn.textContent = theme;
     localStorage.setItem('nanovnav-theme', theme);
     saved = theme;
