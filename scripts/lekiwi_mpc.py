@@ -250,7 +250,7 @@ def rr_init(args):
                 shares.append(1)
                 bp = rrb.Blueprint(rrb.Vertical(*rows, row_shares=shares),
                                    auto_views=False, collapse_panels=True)
-            for rec in viewer_recs:
+            for rec in viewer_recs + streams:
                 rr.send_blueprint(bp, recording=rec) if rec is not None else rr.send_blueprint(bp)
             mode = "flat" if getattr(args, "viewer_flat", False) else "2-row"
             tgt = "waypoint (indexed)" if graph_mode else "goal"
