@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NanoNAV — real-robot navigation with Nano World Models</title>
 <meta name="description" content="Latent-space planning with a Nano World Model drives a LeKiwi robot to goal images — learned from 25 minutes of driving, no maps, no depth, no pose.">
-<link rel="stylesheet" href="style.css?v=1782256072">
+<link rel="stylesheet" href="style.css?v=1782257855">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
 <body>
@@ -36,10 +36,10 @@
     <li><a href="#the-problem-statement">The Problem Statement</a></li>
     <li><a href="#robot-hardware">Robot Hardware</a></li>
     <li><a href="#data">Data</a></li>
+    <li><a href="#latent-space">Latent Space</a></li>
     <li><a href="#the-world-model">The World Model</a></li>
     <li><a href="#road-to-planning">Road to Planning</a></li>
-    <li><a href="#limitations">Limitations</a></li>
-    <li><a href="#what-comes-next">What comes next</a></li>
+    <li><a href="#limitations-and-what-comes-next">Limitations and what comes next</a></li>
   </ol>
 </nav>
 
@@ -104,7 +104,17 @@
   <figcaption><b>The action distribution per chunk, dead-reckoned from the raw logs.</b> Forward motion is nearly bang-bang, stopped or full speed, and the per-chunk reach is short (~1.65 cm). The lateral drift Δy that I drop sits in the sub-millimeter range.</figcaption>
 </figure>
 
-<h2 id="the-world-model">4 · The World Model</h2>
+<h2 id="latent-space">4 · Latent Space</h2>
+
+<p>A camera frame is a grid of hundreds of thousands of pixels. Working directly in that space is expensive and fragile: two images of the same scene taken one step apart can differ in thousands of pixel values because of lighting flicker or compression artifacts, even though nothing meaningfully changed. A <strong>Variational Autoencoder</strong> (VAE) solves this by compressing each frame into a short vector called a <strong>latent</strong>, which captures the essential structure of the image while discarding that noise. Two frames of the same view produce nearby latents. Two frames of completely different places produce latents far apart.</p>
+
+<p>The compression here is dramatic, from a 480×640 RGB frame down to a [4×32×32] latent, roughly a 450× reduction. What comes out is not a human-readable description of the scene, but it is a structured, smooth space where arithmetic is meaningful. Shift the latent by a small amount and the decoded image changes by a small, semantically coherent amount.</p>
+
+<p>In this project the VAE is <strong>frozen</strong> and pretrained on Stable Diffusion's training data, so it never sees robot footage. It acts as a universal visual encoder that maps any camera frame to a latent. The world model is then trained entirely in this latent space: given recent latents and an action, predict the next latent. The planner searches for action sequences whose imagined latent endpoint looks closest to the goal's latent. Every step of the loop, from perception to imagination to scoring, happens in latent space, with raw pixels only entering and leaving at the very edges.</p>
+
+<p>That structure creates one important constraint: the distance metric used for planning has to be meaningful in the specific latent space the model predicts in. What looks like a useful distance measure globally can become nearly flat in the far field, making it impossible for the planner to tell whether a candidate action moved toward the goal. That failure mode ends up driving most of the work in the next section.</p>
+
+<h2 id="the-world-model">5 · The World Model</h2>
 
 <p>The world model I used is <strong>NanoWM</strong>, a ~160M-parameter diffusion-forcing transformer that works not in pixels but in a compressed <em>latent</em> space produced by a frozen Stable-Diffusion VAE. Given a few context frames and a candidate action chunk, it predicts a latent future frame, and stacking those predictions gives a <em>rollout</em>, a short imagined sequence of what latent driving would look like.</p>
 
@@ -119,7 +129,7 @@
   <figcaption><b>Imagined vs. real.</b> Left: a world-model rollout from 4 context frames and a recorded action sequence. Right: what the camera actually saw. Blurry, but directionally right.</figcaption>
 </figure>
 
-<h2 id="road-to-planning">5 · Road to Planning</h2>
+<h2 id="road-to-planning">6 · Road to Planning</h2>
 
 <p>Everything above is setup. What follows is the build log: each attempt, what broke, and what it taught.</p>
 
@@ -290,15 +300,13 @@
   <figcaption><b>Planner visualization (left) and overhead camera (right), synchronized.</b> The planner routes through waypoints and drives to the goal. The overhead recording is compressed roughly 83× from the original 15-minute run.</figcaption>
 </figure>
 
-<h2 id="limitations">6 · Limitations</h2>
+<h2 id="limitations-and-what-comes-next">7 · Limitations and what comes next</h2>
 
 <p>The scope here is deliberately narrow, and that narrowness is a tradeoff worth naming. The system covers one corner of one room through a single overhead camera, with goals drawn from the same space the robot drove through. Navigation is stop-and-plan, meaning the robot pauses roughly 7 seconds between moves rather than driving continuously, and the graph covers exactly the ground the training data crossed. These bounds were chosen, not stumbled into. The question this project set out to answer did not require a general solution, and trying to build one would have buried the interesting parts under engineering scaffolding.</p>
 
 <p>None of the algorithms here are original, and that too is intentional. The graph is a form of teach-and-repeat, where nodes are training frames, localization is nearest-neighbor lookup, and routes replay stitched segments of prior drives. The distance metric is frozen DINOv2 cosine similarity, which is DINO-WM. The experience graph mirrors ViNG. The planner is textbook sampling MPC. Using proven building blocks was a choice, not a shortcut, because the interesting question was never whether a new algorithm could navigate a room. It was whether these specific pieces could be combined and tuned to work reliably together on real hardware from 25 minutes of data. The difficulty was in the integration, and that is where all the effort went.</p>
 
-<h2 id="what-comes-next">7 · What comes next</h2>
-
-<p>The most immediate constraint is coverage. Collecting more trajectories around the room adds nodes and edges to the graph. Multiple cameras would widen the field of view. Reverse driving adds backward edges without retraining. A visual-servo final approach that can strafe and reverse, bypassing the world model entirely, would handle the last centimeters more reliably than CEM. Faster inference, from roughly 7 s toward 1 s per step, would make motion continuous rather than hop-by-hop.</p>
+<p>Most of these constraints have natural paths forward within the same architecture. Coverage is the most immediate one: more trajectories add nodes and edges without changing anything else. Multiple cameras would widen the field of view, and reverse driving would add backward edges without retraining. A visual-servo final approach that can strafe and reverse, bypassing the world model for the last few centimeters, would be more reliable than asking CEM to solve a precision docking problem. Faster inference, from roughly 7 seconds toward 1 second per step, would make motion continuous rather than hop-by-hop.</p>
 
 <p>The broader architecture already has a natural three-layer shape. A graph handles topological memory and long-range routing. CEM and the world model handle local planning across roughly 40 cm of horizon. A visual-servo endgame handles the final approach. Each layer keeps the next one inside its comfort zone.</p>
 
