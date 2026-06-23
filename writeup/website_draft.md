@@ -37,7 +37,7 @@ I taught a [**LeKiwi**](https://github.com/SIGRobotics-UIUC/LeKiwi) mobile manip
 
 I've been fascinated by world model research lately. The field is a collection of competing bets on what the right output is, what the right training signal is, and where the real leverage lies. Dr. Fei-Fei Li describes the current landscape in [**A Functional Taxonomy of World Models**](https://www.worldlabs.ai/blog/taxonomy-of-world-models). She organizes them by what they output. A **Renderer** outputs pixels meant for human eyes, where visual fidelity is what matters. A **Simulator** outputs state, a geometrically and physically faithful representation that programs can compute on. A **Planner** outputs *actions*. Given observations and a goal, it decides what the agent should do next, closing the perception–action loop. She argues these eventually converge into unified models, with simulation as the linchpin.
 
-This project lives squarely in the **Planner** corner of that taxonomy. It is not trying to render a beautiful world or to be a faithful physics engine. The decoded frames are, frankly, blurry. It is trying to use a small, imperfect imagination as the inner loop of a controller. Propose an action, imagine its consequence, score that consequence against a goal image, act. The whole story that follows is what happens when you take the Planner ambition seriously on cheap hardware and a small dataset.
+This project lives squarely in the **Planner** corner of that taxonomy. It is not trying to render a beautiful world or be a faithful physics engine. The decoded frames are, frankly, blurry. It is trying to use a small, imperfect imagination as the inner loop of a controller. Propose an action, imagine its consequence, score that consequence against a goal image, act. The whole story that follows is what happens when you take the Planner ambition seriously on cheap hardware and a small dataset.
 
 I was inspired by [**Nano World Models**](https://arxiv.org/abs/2605.23993) (Huang et al., 2026), a minimalist, diffusion-forcing world-model codebase released recently. The authors remark that "the broader research community still lacks compact, reproducible, and easily extensible implementations" of modern world models and set out to change that. More than the code, that framing is what grabbed me. It was a call to *democratize* world-model research, to show the ideas don't require a frontier lab's compute or data to be worth building on. That resonated, and it set the constraint that defines everything here: do this small.
 
@@ -229,8 +229,8 @@ Because the action now multiplicatively controls the scale of the entire feature
 [FIGURE: ✅ assets/c1_smoke_strip.png]
 *Imagining in semantic space. The world model predicts DINOv2 tokens, and a small decoder renders them back to pixels for visualization. The planner scores in token space and never decodes.*
 
-[FIGURE: ⏳ assets/dinov2_planner_demo.mp4 — on-robot demo of the DINOv2 flat planner reaching a nearby goal]
-*[TODO: short clip of the DINOv2 planner working on the robot without the graph — goal within ~40 cm, metric descending, robot converging. Shows the metric works before introducing the graph as the solution to its range limit.]*
+[FIGURE: ✅ assets/dinov2_planner_demo.mp4 — on-robot demo of the DINOv2 flat planner reaching a nearby goal]
+*The flat planner, no graph. Goal within ~40 cm, DINOv2 metric descending, robot converging. This is the range limit the graph is built to solve.*
 
 ---
 
