@@ -22,7 +22,7 @@
 
 ## Hero video
 
-[FIGURE: ✅ assets/plan-demo.mp4 — headline demo: graph-guided MPC navigating to the hamper goal, autoplay/loop/muted]
+[FIGURE: ✅ assets/plan-demo-6s.mp4 — headline demo: graph-guided MPC navigating to the hamper goal, autoplay/loop/muted]
 
 ---
 
@@ -261,7 +261,7 @@ Both the weld threshold and the waypoint spacing are calibrated from data. I set
 
 Without the graph, the flat planner succeeds from a DINOv2 cosine start distance of 0.35 but wanders from 0.45. The graph crosses exactly that threshold.
 
-[FIGURE_PAIR: ✅ assets/plan-demo.mp4 | assets/topdown_graph_hamper.mp4 — synced planner view and overhead camera for a successful graph-guided run to the hamper]
+[FIGURE_PAIR: ✅ assets/plan-demo-6s.mp4 | assets/topdown_graph_hamper-6s.mp4 — synced planner view and overhead camera for a successful graph-guided run to the hamper]
 *Planner visualization (left) and overhead camera (right), synchronized. The planner routes through waypoints and drives to the goal. The overhead recording is compressed roughly 83× from the original 15-minute run.*
 
 ---
