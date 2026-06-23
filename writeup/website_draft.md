@@ -22,8 +22,7 @@
 
 ## Hero video
 
-[FIGURE: ✅ assets/plan-demo.mp4 — PLACEHOLDER headline demo, autoplay/loop/muted in the hero slot]
-*[TODO: replace with the filmed demo set when ready — strongest single asset is the nearhamper A/B (baseline wanders, graph reaches). Original source kept at docs/assets/plan-demo-source.mov.]*
+[FIGURE: ✅ assets/plan-demo.mp4 — headline demo: graph-guided MPC navigating to the hamper goal, autoplay/loop/muted]
 
 ---
 
@@ -252,7 +251,7 @@ Both the weld threshold and the waypoint spacing are calibrated from data. I set
 
 ---
 
-### Three failures on the way to the first graph success
+### Three notes on building a graph
 
 **1. The graph must be directed.** First routes sent waypoints backwards along episode threads. This robot doesn't reverse (yet) and data is forward-only. Temporal edges became one-way.
 
@@ -260,17 +259,13 @@ Both the weld threshold and the waypoint spacing are calibrated from data. I set
 
 **3. Localization and waypoint tuning.** On the robot, localization flip-flopped between look-alike frames in different episodes, causing the route to re-roll every step. The fix was hysteresis, committing to a path and requiring strong evidence before re-routing. Waypoints placed too close gave CEM a nearly-identical target, producing near-zero commands, fixed by enforcing a minimum waypoint spacing.
 
-[FIGURE: ⏳ TODO — insert additional on-robot success run videos here (e.g. screen recordings or .rrd traces of multiple goal-reach runs)]
-
-The robot reached the **nearpurifier** goal in 129 steps along a 40-hop route, with localization tracked the whole way and the metric closing from 0.30 to 0.08. First full end-to-end success.
-
 Without the graph, the flat planner succeeds from a DINOv2 cosine start distance of 0.35 but wanders from 0.45. The graph crosses exactly that threshold.
 
-[FIGURE: ✅ assets/route_strip_subgoals.png]
-*Live routing view showing the planner's current subgoal and the planned chain of waypoints ahead.*
+[FIGURE: ✅ assets/plan-demo.mp4 controls — graph-guided MPC run: the planner routes through waypoints to reach the hamper goal]
+*The full system running on the robot. The planner localizes in the graph, builds a waypoint route, and drives to the goal through a sequence of short CEM-planned hops.*
 
-[FIGURE: ⏳ on-robot success capture from mpc_semantic_graph_nearpurifier4.rrd — screen-record or trace]
-*[TODO: headline run. A dist-to-goal + graph-distance trace, or a screen recording of the viewer.]*
+[FIGURE: ✅ assets/topdown_graph_hamper.mp4 — overhead view of a successful graph-guided run to the hamper, compressed ~83×]
+*Top-down view of the same run. The robot's path traces the graph route from start to goal, sped up roughly 83× from the original 15-minute recording.*
 
 ---
 

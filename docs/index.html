@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NanoNAV — real-robot navigation with Nano World Models</title>
 <meta name="description" content="Latent-space planning with a Nano World Model drives a LeKiwi robot to goal images — learned from 25 minutes of driving, no maps, no depth, no pose.">
-<link rel="stylesheet" href="style.css?v=1782249822">
+<link rel="stylesheet" href="style.css?v=1782254999">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
 <body>
@@ -272,7 +272,7 @@
   <figcaption><b>Building and routing the graph.</b> Episodes become nodes, shared views weld threads together, Dijkstra hands the planner one waypoint at a time.</figcaption>
 </figure>
 
-<h3>Three failures on the way to the first graph success</h3>
+<h3>Three notes on building a graph</h3>
 
 <p><strong>1. The graph must be directed.</strong> First routes sent waypoints backwards along episode threads. This robot doesn't reverse (yet) and data is forward-only. Temporal edges became one-way.</p>
 
@@ -280,18 +280,17 @@
 
 <p><strong>3. Localization and waypoint tuning.</strong> On the robot, localization flip-flopped between look-alike frames in different episodes, causing the route to re-roll every step. The fix was hysteresis, committing to a path and requiring strong evidence before re-routing. Waypoints placed too close gave CEM a nearly-identical target, producing near-zero commands, fixed by enforcing a minimum waypoint spacing.</p>
 
-<div class="pending"><b>Pending figure.</b> TODO — insert additional on-robot success run videos here (e.g. screen recordings or .rrd traces of multiple goal-reach runs)</div>
-
-<p>The robot reached the <strong>nearpurifier</strong> goal in 129 steps along a 40-hop route, with localization tracked the whole way and the metric closing from 0.30 to 0.08. First full end-to-end success.</p>
-
 <p>Without the graph, the flat planner succeeds from a DINOv2 cosine start distance of 0.35 but wanders from 0.45. The graph crosses exactly that threshold.</p>
 
 <figure>
-  <img src="assets/route_strip_subgoals.png" alt="">
-  <figcaption>Live routing view showing the planner's current subgoal and the planned chain of waypoints ahead.</figcaption>
+  <video src="assets/plan-demo.mp4" controls loop muted playsinline></video>
+  <figcaption><b>The full system running on the robot.</b> The planner localizes in the graph, builds a waypoint route, and drives to the goal through a sequence of short CEM-planned hops.</figcaption>
 </figure>
 
-<div class="pending"><b>Pending figure.</b> on-robot success capture from mpc_semantic_graph_nearpurifier4.rrd — screen-record or trace</div>
+<figure>
+  <video src="assets/topdown_graph_hamper.mp4" autoplay loop muted playsinline></video>
+  <figcaption><b>Top-down view of the same run.</b> The robot's path traces the graph route from start to goal, sped up roughly 83× from the original 15-minute recording.</figcaption>
+</figure>
 
 <h2 id="limitations">6 · Limitations</h2>
 
