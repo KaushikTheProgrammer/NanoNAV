@@ -229,7 +229,7 @@ Because the action now multiplicatively controls the scale of the entire feature
 [FIGURE: ✅ assets/c1_smoke_strip.png]
 *Imagining in semantic space. The world model predicts DINOv2 tokens, and a small decoder renders them back to pixels for visualization. The planner scores in token space and never decodes.*
 
-[FIGURE: ✅ assets/dinov2_planner_demo.mp4 — on-robot demo of the DINOv2 flat planner reaching a nearby goal]
+[FIGURE: ✅ assets/dinov2_planner_demo.mp4 controls — on-robot demo of the DINOv2 flat planner reaching a nearby goal]
 *The flat planner, no graph. Goal within ~40 cm, DINOv2 metric descending, robot converging. This is the range limit the graph is built to solve.*
 
 ---
