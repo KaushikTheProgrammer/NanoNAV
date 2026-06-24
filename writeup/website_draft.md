@@ -62,13 +62,13 @@ The compression here is dramatic, from a 480×640 RGB frame down to a [4×32×32
 
 In this project the VAE is **frozen** and pretrained on Stable Diffusion's training data, so it never sees robot footage. It acts as a universal visual encoder that maps any camera frame to a latent. The world model is then trained entirely in this latent space: given recent latents and an action, predict the next latent. The planner searches for action sequences whose imagined latent endpoint looks closest to the goal's latent. Every step of the loop, from perception to imagination to scoring, happens in latent space, with raw pixels only entering and leaving at the very edges.
 
-That structure creates one important constraint: the distance metric used for planning has to be meaningful in the specific latent space the model predicts in. What looks like a useful distance measure globally can become nearly flat in the far field, making it impossible for the planner to tell whether a candidate action moved toward the goal. That failure mode ends up driving most of the work in §5.
+That structure creates one important constraint: the distance metric used for planning has to be meaningful in the specific latent space the model predicts in. What looks like a useful distance measure globally can become nearly flat in the far field, making it impossible for the planner to tell whether a candidate action moved toward the goal. That failure mode ends up driving most of the work in [§5](#road-to-planning).
 
 ---
 
 ## 2 · Robot Hardware
 
-The [**LeKiwi**](https://github.com/SIGRobotics-UIUC/LeKiwi) is an open-source mobile manipulator from the LeRobot ecosystem, built around a low-cost SO-101 arm on a three-omniwheel kiwi drive base, driven by an onboard Raspberry Pi and inexpensive serial-bus servos. For navigation I use only the base, with the arm parked in a fixed pose throughout. The Pi stays light on the robot side, streaming camera frames and accepting velocity commands over the network while the world model itself runs on a rented cloud GPU connected through an SSH tunnel.
+The [**LeKiwi**](https://github.com/SIGRobotics-UIUC/LeKiwi) is an open-source mobile manipulator from UIUC and LeRobot, built around a low-cost SO-101 arm on a three-omniwheel kiwi drive base, driven by an onboard Raspberry Pi and inexpensive serial-bus servos. For navigation I use only the base, with the arm parked in a fixed pose throughout. The Pi stays light on the robot side, streaming camera frames and accepting velocity commands over the network while the world model itself runs on a rented cloud GPU connected through an SSH tunnel.
 
 The stock LeKiwi uses a low front-facing webcam, which I replaced with wider-angle USB cameras and supplemented with a [third overhead camera](https://www.amazon.com/dp/B0C289GYVZ?ref=ppx_yo2ov_dt_b_product_details&th=1) on a custom mount, angled down at roughly 55°. That overhead vantage is what everything downstream depends on, capturing the scene across four depth zones at once, from the robot's own body and the near floor out to the mid-room objects and far walls.
 
