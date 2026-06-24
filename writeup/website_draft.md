@@ -114,7 +114,7 @@ One critical knob is the **frame interval**, the temporal stride between the fra
 
 The key architecture choice is that the perception backbone, the VAE, is **frozen and pretrained**, while the 160M transformer is trained **from scratch** on my 50 episodes, making it a scene-specific latent dynamics model riding on a general perceptual backbone. It learns the physics of *this* room and generalizes to new trajectories and goals within it, not across environments.
 
-Training uses [**Diffusion Forcing**](https://arxiv.org/abs/2407.01392) (Chen et al., 2024), which gives each frame its own independent noise level rather than corrupting every frame to one shared level. With causal masking, this lets the network roll itself out autoregressively at inference, predicting a frame, treating it as clean context, and using that to predict the next, which is exactly the loop CEM drives. The transformer learns to **denoise the next frame's latent** given recent frames and the action chunk. The action enters through a small **additive embedding**, a choice that turns out to matter and that I revisit in §5. Training ran for roughly **12,000 steps on a single rented H100** using AdamW with effective batch 64 in bf16, completing in a single overnight run.
+Training uses [**Diffusion Forcing**](https://arxiv.org/abs/2407.01392) (Chen et al., 2024), which gives each frame its own independent noise level rather than corrupting every frame to one shared level. With causal masking, this lets the network roll itself out autoregressively at inference, predicting a frame, treating it as clean context, and using that to predict the next, which is exactly the loop CEM drives. The transformer learns to **denoise the next frame's latent** given recent frames and the action chunk. The action enters through a small **additive embedding**, a choice that turns out to matter and that I revisit in [§5](#road-to-planning). Training ran for roughly **12,000 steps on a single rented H100** using AdamW with effective batch 64 in bf16, completing in a single overnight run.
 
 [FIGURE: ✅ assets/long_0_cmp.mp4 — autoplay/loop/muted]
 *Imagined vs. real. Left: a world-model rollout from 4 context frames and a recorded action sequence. Right: what the camera actually saw. Blurry, but directionally right.*
@@ -182,6 +182,8 @@ Retrained at f=10. The action branch came alive with clean **true < zero < rando
 
 The robot wandered. The VAE latent L2 distance-to-goal hovered around 45 (a raw latent distance, not centimetres) for 22 steps, with the yaw command flip-flopping every step. The world model rollouts looked reasonable and the planner was sampling correctly, which pointed the blame at the **distance metric** rather than either of them.
 
+NOTE: Try to find the rerun recording of this on runpod and include it here
+
 To check, I hand-placed the robot at measured distances from the goal, varied its yaw orientation at each position, and recorded the latents for three candidate metrics: pixel L1, SD-VAE latent L2, and frozen DINOv2 patch cosine. Each metric decreased monotonically with distance, which looked reassuring. What that test missed was the rate of decrease: in the far band the gradient was so shallow it was buried in the robot's own standing-still noise, so CEM could not distinguish one candidate action from another. That failure only became clear through the systematic sweep described in the next section.
 
 ---
@@ -240,7 +242,7 @@ $$\text{output} = \gamma(\mathbf{a}) \cdot \text{LayerNorm}(x) + \beta(\mathbf{a
 
 Because the action now multiplicatively controls the scale of the entire feature map at every layer, the model cannot reduce its influence by tuning a weight toward zero. On the same semantic latents where additive injection collapsed to 0.0028 RMS, AdaLN held at 0.2 RMS.
 
-In these videos the yellow arrow shows the action vector the robot executed.
+In these videos the yellow arrow shows the action vector the robot executed. The goal image is shown as the 4th image in the sequence.
 
 [FIGURE: ✅ assets/dinov2_planner_demo.mp4 controls — on-robot demo of the DINOv2 flat planner reaching a nearby goal]
 *The flat planner, no graph. Goal within ~40 cm, DINOv2 metric descending, robot converging. This is the range limit the graph is built to solve.*
@@ -254,6 +256,8 @@ In these videos the yellow arrow shows the action vector the robot executed.
 ---
 
 ### Building a waypoint graph
+
+NOTE: The range might not actually be 40cm. Emphase that the image overlap is more important than the actual metric distance
 
 The new metric is good for ~40 cm. Beyond that, the goal is out of range and the planner has no signal. If you start 180° rotated from the goal, CEM has nothing to descend. Every frame in the training data is a place the robot demonstrably reached, so the training data becomes the map.
 
@@ -295,7 +299,7 @@ It is worth acknowledging that a topological graph of training frames is not a f
 
 My goal with this project was never to build the most capable navigation system. It was to find out whether a small world model trained in a constrained environment can do meaningful planning at all. That question now has a clear answer, though a few constraints and open directions are worth naming.
 
-**Bounded by training data.** The graph, world model, and distance metric all assume the robot is in the same room it drove through during collection. DINOv2 embeddings will generalize to new environments, but whether the learned action-to-latent dynamics transfer is an open question worth testing.
+**Bounded by training data.** The graph, world model, and distance metric all assume the robot is in the same room it drove through during collection. DINOv2 embeddings will generalize to new environments, but whether the learned action-to-latent dynamics will transfer is an open question worth testing.
 
 **Navigational precision.** The robot reliably reaches the goal area, but the final pose can be offset in translation and rotation, most visibly in the third no-graph demo where the robot converges to the right location but does not pixel-match the goal. A visual-servo step that can strafe and reverse would close that gap more reliably than asking CEM to solve a millimeter-level docking problem.
 
@@ -305,7 +309,7 @@ My goal with this project was never to build the most capable navigation system.
 
 **Single camera.** The LeKiwi has three cameras but this project used only the overhead one. Additional views would give the distance metric more signal and help localization in areas where the single overhead angle is ambiguous, though at the cost of higher inference time.
 
-**Two-dimensional action space.** Data was collected with forward and turn commands only, so the planner cannot strafe and the graph has no backward edges. Adding y-velocity and reverse would expand what the planner can express, though it would require proportionally more diverse coverage to fill the larger action space.
+**Two-dimensional action space.** Data was collected with forward and turn commands only, so the planner cannot strafe and the graph has no backward edges. Adding y-velocity and reverse would expand what the planner can express, though it would require proportionally more diverse data coverage to fill the larger action space.
 
 **Distance metric.** DINOv2 cosine is a strong starting point for goal-reaching but is purely appearance-based, with no concept of obstacles or preferred routes. Extending it toward a metric that penalizes passing through specific regions would make the planner more useful in cluttered environments without requiring a separate collision map.
 
@@ -313,7 +317,7 @@ My goal with this project was never to build the most capable navigation system.
 
 **Static environment.** The training data was collected with furniture fixed and no dynamic obstacles, which helped the model focus on learning the robot's own dynamics but leaves open-world generalization untested. Covering more environmental variability, different lighting, rearranged furniture, moving objects, would be the natural next step for robustness.
 
-It was very rewarding to see JEPA-style latent-space planning come to life on real hardware in my own apartment. I look forward to expanding on this project and exploring what is possible with World Models without needing frontier levels of compute or data. Would love to chat more with anyone working on World Models/Robot Learning. Feel free to reach out on [**LinkedIn**](https://www.linkedin.com/in/kaushik-prakash-7ab477162/).
+It was very rewarding to see JEPA-style latent-space planning come to life on real hardware in my own apartment. I look forward to expanding on this project and exploring what is possible with world models without needing frontier levels of compute or data. If you are interested in world models/robot learning, I'd love to chat! Feel free to reach out on [**LinkedIn**](https://www.linkedin.com/in/kaushik-prakash-7ab477162/).
 
 ---
 
