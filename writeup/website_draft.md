@@ -241,6 +241,9 @@ Because the action now multiplicatively controls the scale of the entire feature
 [FIGURE: ✅ assets/dinov2_planner_demo.mp4 controls — on-robot demo of the DINOv2 flat planner reaching a nearby goal]
 *The flat planner, no graph. Goal within ~40 cm, DINOv2 metric descending, robot converging. This is the range limit the graph is built to solve.*
 
+[FIGURE: ✅ assets/nograph_nearfan.mp4 controls — second no-graph demo: flat planner navigating to a nearby goal near the fan]
+*Another flat-planner run, no graph. The goal is close enough that DINOv2 cosine has a usable gradient and CEM converges without needing waypoints.*
+
 ---
 
 ### Building a waypoint graph
