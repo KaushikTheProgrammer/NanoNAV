@@ -10,10 +10,11 @@ Sections are reviewed and cleaned one at a time, in document order:
 
 1. Background — done
 2. Problem Statement — done
+   - Latent space (subsection ### ) — done
 3. Robot Hardware — done
 4. Data — done
 5. The World Model — done
-6. Road to a working planner — done
+6. Road to Planning — done
    - Planning: MPC + CEM in latent space — done
    - Inference setup — done
    - Run 001 — done
@@ -22,19 +23,54 @@ Sections are reviewed and cleaned one at a time, in document order:
    - First closed-loop run — done (TODO: wire in goal image, start position, video from goals/run1/)
    - The semantic pivot — done
    - Building a waypoint graph — done
-   - Three failures on the way to the first graph success — done
-7. Limitations — done
-8. What comes next — done
+   - Three notes on building a graph — done
+7. Reflection (§6 Limitations + §7 What comes next merged) — done
+
+## Current asset inventory (docs/assets/)
+
+### Videos
+- `plan-demo-6s.mp4` — 6 s graph-guided MPC run; hero slot + §5 FIGURE_PAIR left
+- `topdown_graph_hamper-6s.mp4` — 6 s overhead hamper run, 152× speedup; §5 FIGURE_PAIR right
+- `dinov2_planner_demo.mp4` — flat planner demo with controls (§5, before "Building a waypoint graph")
+- `nograph_nearfan.mp4` — no-graph demo near the fan, controls (§5)
+- `nograph_nearchair.mp4` — no-graph demo near the chair, controls (§5)
+- `long_0_cmp.mp4` — world model rollout vs real, autoplay (§4 World Model)
+- `rotation_0_cmp.mp4` + `translation_0_cmp.mp4` — motion tracking side-by-side (§5)
+- `subgoal-graph-anim.mp4` — graph build/route animation, wide + controls (§5)
+
+### Images
+- `lekiwi-mount.jpg` — robot photo (§2)
+- `world_trajectories.png` — dead-reckoned episode paths (§3)
+- `chunk_deltas.png` — action distribution (§3)
+- `stationary_latent_compare_f05.png` — f=5 latent overlap (§5)
+- `stationary_latent_compare.png` — f=10 latent separation (§5)
+- `action_diagnostic.png` — action test passed (§5)
+- `sweep_diagram.png` — measurement grid (§5)
+- `metric_comparison.png` — VAE vs DINOv2 metric (§5)
+- `fsweep_chunk_distributions.png` — why VAE latent fails (§5)
+- `c1_smoke_strip.png` — decoder visualization (§5)
+- `route_montage.png` — route film strip, wide (§5)
+
+### Other
+- `viewer_blueprint.rbl` — Rerun layout file for .rrd playback
 
 ## Outstanding asset placeholders
 
-- `goals/run1/goal.png` — wire into First closed-loop run section
-- `⏳ assets/dinov2_planner_demo.mp4` — short clip of DINOv2 flat planner working on robot
-- `⏳ assets/subgoal-graph-anim.mp4` — graph build/route animation
-- `⏳ on-robot success capture` — nearpurifier run trace or screen recording
-- `⏳ additional on-robot success run videos`
-- `🆕 assets/ps5-controller.jpg` — photo of DualSense controller
-- TL;DR — not formally reviewed against style rules
+- `🆕 assets/ps5-controller.jpg` — photo of DualSense controller (§3)
+- `goals/run1/goal.png` — wire into First closed-loop run section (§5)
+- `⏳ assets/subgoal-graph-anim.mp4` — copy from context/figures/ into docs/assets/ if not already present
+
+## Open content questions
+
+- Whether to mention LeCun's JEPA / latent-space prediction philosophy in Background (user raised, decision pending). Suggested placement: after the Fei-Fei Li taxonomy paragraph, framing the DINOv2 pivot as the practical version of "predict in abstract space, not pixels."
+- OOD generalization: worth testing and noting in §7 what actually happens outside the training distribution.
+
+## Build pipeline notes
+
+- `build_site.py` supports two figure marker types:
+  - `[FIGURE: ✅ assets/foo.mp4 controls — desc]` — single figure; add `wide` for full-bleed
+  - `[FIGURE_PAIR: ✅ assets/a.mp4 | assets/b.mp4 — desc]` — two videos stacked full-width
+- Video cache-busting: rename the asset file if GitHub Pages serves a stale cached version under the old name.
 
 ## Prose style rules
 
@@ -42,13 +78,14 @@ Sections are reviewed and cleaned one at a time, in document order:
 - No colons to introduce a clause or list inline. Break into a new sentence instead, or fold the list items into prose.
 - No semicolons. Split into two sentences.
 - Sentences should connect and flow like a blog post, not read as a series of short punches. Use relative clauses, participial phrases, and conjunctions to keep paragraphs moving.
-- Comments about what is "not novel" or what the system "cannot do" should be framed as deliberate scope decisions, not self-criticism.
+- Scope constraints should be framed as deliberate choices, not failures.
+- First-person voice ("My goal…") is appropriate in §7 Reflection.
 
 ## Structure rules
 
-- Each section should state its *goal or motivation* before describing specifics or mechanics. The reader should understand why before how.
+- Each section should state its goal or motivation before describing specifics or mechanics.
 - Avoid embedding lists mid-sentence with a colon. Either convert to prose or use a proper bulleted list with a full-sentence introduction.
-- Placeholder figures use the convention `[FIGURE: ✅/⏳/🆕 assets/filename — description]` followed by a caption in italics.
+- Placeholder figures use `[FIGURE: ✅/⏳/🆕 assets/filename — description]` followed by a caption in italics.
 
 ## What to omit / defer
 

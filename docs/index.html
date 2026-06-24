@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NanoNAV — real-robot navigation with Nano World Models</title>
 <meta name="description" content="Latent-space planning with a Nano World Model drives a LeKiwi robot to goal images — learned from 25 minutes of driving, no maps, no depth, no pose.">
-<link rel="stylesheet" href="style.css?v=1782270571">
+<link rel="stylesheet" href="style.css?v=1782319868">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
 <body>
@@ -38,7 +38,7 @@
     <li><a href="#data">Data</a></li>
     <li><a href="#the-world-model">The World Model</a></li>
     <li><a href="#road-to-planning">Road to Planning</a></li>
-    <li><a href="#limitations-and-what-comes-next">Limitations and what comes next</a></li>
+    <li><a href="#reflection">Reflection</a></li>
   </ol>
 </nav>
 
@@ -256,6 +256,8 @@
 
 <p>Because the action now multiplicatively controls the scale of the entire feature map at every layer, the model cannot reduce its influence by tuning a weight toward zero. On the same semantic latents where additive injection collapsed to 0.0028 RMS, AdaLN held at 0.2 RMS.</p>
 
+<p>In these videos the yellow arrow shows the action vector the robot executed.</p>
+
 <figure>
   <video src="assets/dinov2_planner_demo.mp4" controls loop muted playsinline></video>
   <figcaption><b>The flat planner, no graph.</b> Goal within ~40 cm, DINOv2 metric descending, robot converging. This is the range limit the graph is built to solve.</figcaption>
@@ -313,9 +315,9 @@
 
 <p>**Should acknowledge here that building a waypoint graph is similar to a classical robotics approach</p>
 
-<h2 id="limitations-and-what-comes-next">6 · Limitations and what comes next</h2>
+<h2 id="reflection">6 · Reflection</h2>
 
-<p>The goal here was never to build the most capable navigation system. It was to find out whether a small world model trained in a constrained environment can do meaningful planning at all. That question now has a clean answer, but it comes with a clear boundary: the system is entirely bounded by the data it was trained on. The graph, the world model, and the distance metric all assume the robot is operating in the same room it drove through during collection. What happens outside that distribution is an open question worth testing systematically.</p>
+<p>My goal with this project was never to build the most capable navigation system. It was to find out whether a small world model trained in a constrained environment can do meaningful planning at all. That question now has a clear answer. The system is entirely bounded by the data it was trained on, though. The graph, the world model, and the distance metric all assume the robot is operating in the same room it drove through during collection. What happens outside that distribution is an open question worth testing systematically.</p>
 
 <p>The navigation also is not precise in the way GPS-guided systems are. The robot reaches the goal area reliably, but the final pose can be offset in both translation and rotation, which is most visible in the third no-graph demo where the robot converges to a recognizably correct location that does not pixel-match the goal image. For tasks requiring a precise final pose, a visual-servo step that can strafe and reverse would close that gap more reliably than asking CEM to solve a millimeter-level docking problem.</p>
 

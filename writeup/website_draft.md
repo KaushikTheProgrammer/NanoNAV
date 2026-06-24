@@ -238,6 +238,8 @@ $$\text{output} = \gamma(\mathbf{a}) \cdot \text{LayerNorm}(x) + \beta(\mathbf{a
 
 Because the action now multiplicatively controls the scale of the entire feature map at every layer, the model cannot reduce its influence by tuning a weight toward zero. On the same semantic latents where additive injection collapsed to 0.0028 RMS, AdaLN held at 0.2 RMS.
 
+In these videos the yellow arrow shows the action vector the robot executed.
+
 [FIGURE: ✅ assets/dinov2_planner_demo.mp4 controls — on-robot demo of the DINOv2 flat planner reaching a nearby goal]
 *The flat planner, no graph. Goal within ~40 cm, DINOv2 metric descending, robot converging. This is the range limit the graph is built to solve.*
 
@@ -287,9 +289,9 @@ In this run the robot starts facing the curtained wall, with no visual overlap b
 
 ---
 
-## 7 · Limitations and what comes next
+## 7 · Reflection
 
-The goal here was never to build the most capable navigation system. It was to find out whether a small world model trained in a constrained environment can do meaningful planning at all. That question now has a clean answer, but it comes with a clear boundary: the system is entirely bounded by the data it was trained on. The graph, the world model, and the distance metric all assume the robot is operating in the same room it drove through during collection. What happens outside that distribution is an open question worth testing systematically.
+My goal with this project was never to build the most capable navigation system. It was to find out whether a small world model trained in a constrained environment can do meaningful planning at all. That question now has a clear answer. The system is entirely bounded by the data it was trained on, though. The graph, the world model, and the distance metric all assume the robot is operating in the same room it drove through during collection. What happens outside that distribution is an open question worth testing systematically.
 
 The navigation also is not precise in the way GPS-guided systems are. The robot reaches the goal area reliably, but the final pose can be offset in both translation and rotation, which is most visible in the third no-graph demo where the robot converges to a recognizably correct location that does not pixel-match the goal image. For tasks requiring a precise final pose, a visual-servo step that can strafe and reverse would close that gap more reliably than asking CEM to solve a millimeter-level docking problem.
 
