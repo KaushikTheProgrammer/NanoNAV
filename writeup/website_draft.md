@@ -108,7 +108,7 @@ Dead reckoning assumes **no significant slip**, meaning a commanded centimeter i
 
 ## 4 · The World Model
 
-The world model I used is **NanoWM**, a ~160M-parameter diffusion-forcing transformer that works not in pixels but in a compressed *latent* space produced by a frozen Stable-Diffusion VAE. Given a few context frames and a candidate action chunk, it predicts a latent future frame, and stacking those predictions gives a *rollout*, a short imagined sequence of what latent driving would look like. This puts it in the tradition Yann LeCun has championed with [**JEPA**](https://openreview.net/pdf?id=BZ5a1r-kVsf): predict in an abstract representation space rather than in pixel space, so the model learns to anticipate what is semantically meaningful and ignores the texture, lighting, and noise detail it cannot control.
+The world model I used is **NanoWM**, a ~160M-parameter diffusion-forcing transformer that works not in pixels but in a compressed *latent* space produced by a frozen Stable-Diffusion VAE. Given a few context frames and a candidate action chunk, it predicts a latent future frame, and stacking those predictions gives a *rollout*, a short imagined sequence of what latent driving would look like. This is the JEPA approach described in the Background applied to robot navigation, predicting in abstract representation space rather than reconstructing every pixel.
 
 One critical knob is the **frame interval**, the temporal stride between the frames the model is trained to connect. If it is too short, each step barely moves the scene and the action signal drowns in noise, while if it is too long, the prediction itself becomes hard. I return to this parameter in the next section.
 
@@ -313,7 +313,7 @@ My goal with this project was never to build the most capable navigation system.
 
 **Static environment.** The training data was collected with furniture fixed and no dynamic obstacles, which helped the model focus on learning the robot's own dynamics but leaves open-world generalization untested. Covering more environmental variability, different lighting, rearranged furniture, moving objects, would be the natural next step for robustness.
 
-It was very rewarding to visually see the LeCun style of World Model planning come to life on real-hardware in my own apartment. I look forward to expanding on this project and exploring what is possible with World Models without needing frontier levels of compute or data. Would love to chat more with anyone working on World Models/Robot Learning. Feel free to reach out on [**LinkedIn**](https://www.linkedin.com/in/kaushik-prakash-7ab477162/).
+It was very rewarding to see JEPA-style latent-space planning come to life on real hardware in my own apartment. I look forward to expanding on this project and exploring what is possible with World Models without needing frontier levels of compute or data. Would love to chat more with anyone working on World Models/Robot Learning. Feel free to reach out on [**LinkedIn**](https://www.linkedin.com/in/kaushik-prakash-7ab477162/).
 
 ---
 
