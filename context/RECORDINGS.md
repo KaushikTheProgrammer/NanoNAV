@@ -24,11 +24,12 @@ pod *stop*).
 | `mpc_semantic_nearfan2.rrd` | Semantic stack arrival on nearfan2 (in-basin). |
 | `mpc_nearfan2_execute.rrd` | **First-ever REACHED** (original SD-VAE WM, reach-thresh 35, 10 steps). |
 | `mpc_nearfan2_thresh25.rrd` | Second SD-VAE REACHED (reach-thresh 25, 14 steps, sharp final dive into the basin). |
+| `mpc_nearfan.rrd` | **The first failure.** First-ever closed-loop run (original SD-VAE latent-L2 objective): the robot picks various actions but never converges — `dist_to_goal` hovers ~44–46, then locks dead at 44.1 while vx stays nonzero and yaw flips sign each step. The flat far-field metric that drove the whole semantic pivot. Rendered to `docs/assets/first_closedloop_vae.mp4` for the write-up. |
 
 ## Not released (remain on `/workspace/results`)
 
-~35 additional recordings — earlier SD-VAE convergence attempts (`mpc_nearchair1_*`,
-`mpc_nearfan_*`), camera/objective root-cause diagnostics (`mpc_drive_straight.rrd`,
-`mpc_nearfan_execute_v2.rrd`), and superseded graph attempts (`mpc_semantic_graph_nearpurifier{,2,3}.rrd`,
-`mpc_semantic_graph_nearhamper{,1,2}.rrd`). Grab any of these from the pod and add to the release if
-needed.
+~34 additional recordings — earlier SD-VAE convergence attempts (`mpc_nearchair1_*`,
+`mpc_nearfan_live.rrd`, `mpc_nearfan_nearpos.rrd`, …), camera/objective root-cause diagnostics
+(`mpc_drive_straight.rrd`, `mpc_nearfan_execute_v2.rrd`), and superseded graph attempts
+(`mpc_semantic_graph_nearpurifier{,2,3}.rrd`, `mpc_semantic_graph_nearhamper{,1,2}.rrd`). Grab any of
+these from the pod and add to the release if needed.
