@@ -45,6 +45,15 @@ def slugify(s):
     s = re.sub(r"<[^>]+>", "", s).lower()
     return re.sub(r"[^a-z0-9]+", "-", s).strip("-")
 
+
+def strip_md(s):
+    """Strip basic markdown syntax to get plain text for slugification."""
+    s = re.sub(r"\*\*([^*]+)\*\*", r"\1", s)
+    s = re.sub(r"\*([^*]+)\*", r"\1", s)
+    s = re.sub(r"`([^`]+)`", r"\1", s)
+    s = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", s)
+    return s
+
 HEAD = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -60,36 +69,73 @@ HEAD = """<!DOCTYPE html>
 """
 
 SCRIPT = """<script>
-// Sticky left-rail TOC with scroll-spy. Clones the inline Contents nav so there's
-// a single source of truth; CSS shows the rail only on wide screens.
+// Sticky left-rail TOC with scroll-spy and subsection expand.
+// Clones the inline Contents nav; CSS shows the rail only on wide screens.
+// Active section gets .section-active (expands its subsection list);
+// active subsection gets .active on its <a>.
 (function () {
-  var inline = document.querySelector('nav.toc');
-  if (!inline) return;
+  var inlineNav = document.querySelector('nav.toc');
+  if (!inlineNav) return;
 
-  var rail = inline.cloneNode(true);
+  var rail = inlineNav.cloneNode(true);
   rail.className = 'toc-rail';
   rail.removeAttribute('id');
   document.body.appendChild(rail);
 
-  var links = Array.prototype.slice.call(rail.querySelectorAll('a'));
-  var targets = links.map(function (a) {
-    var id = (a.getAttribute('href') || '').replace(/^#/, '');
-    return { el: document.getElementById(id), link: a };
-  }).filter(function (t) { return t.el; });
-  if (!targets.length) return;
+  // Build target lists from the cloned rail
+  var sectionTargets = [], subTargets = [];
+  Array.prototype.forEach.call(rail.querySelectorAll('ol > li'), function (li) {
+    var a = li.querySelector(':scope > a');
+    if (!a) return;
+    var el = document.getElementById((a.getAttribute('href') || '').replace(/^#/, ''));
+    if (!el) return;
+    sectionTargets.push({ el: el, link: a, li: li });
+    Array.prototype.forEach.call(li.querySelectorAll('.subsections a'), function (sa) {
+      var sel = document.getElementById((sa.getAttribute('href') || '').replace(/^#/, ''));
+      if (sel) subTargets.push({ el: sel, link: sa, parentLi: li });
+    });
+  });
+  if (!sectionTargets.length) return;
 
-  var current = null;
-  function update() {
-    var threshold = 140; // px below the viewport top counts as "current"
-    var active = targets[0];
-    for (var i = 0; i < targets.length; i++) {
-      if (targets[i].el.getBoundingClientRect().top <= threshold) active = targets[i];
+  var curSection = null, curSub = null;
+
+  function lastAbove(arr, th) {
+    var active = arr[0];
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i].el.getBoundingClientRect().top <= th) active = arr[i];
       else break;
     }
-    if (active === current) return;
-    if (current) current.link.classList.remove('active');
-    active.link.classList.add('active');
-    current = active;
+    return active;
+  }
+
+  function update() {
+    var th = 140;
+    var activeSection = lastAbove(sectionTargets, th);
+
+    // Active subsection: only within the current section, only if scrolled past
+    var sectionSubs = subTargets.filter(function (s) { return s.parentLi === activeSection.li; });
+    var activeSub = null;
+    if (sectionSubs.length) {
+      var candidate = lastAbove(sectionSubs, th);
+      if (candidate.el.getBoundingClientRect().top <= th) activeSub = candidate;
+    }
+
+    if (activeSection !== curSection) {
+      if (curSection) {
+        curSection.link.classList.remove('active');
+        curSection.li.classList.remove('section-active');
+      }
+      activeSection.link.classList.add('active');
+      activeSection.li.classList.add('section-active');
+      curSection = activeSection;
+      if (curSub) { curSub.link.classList.remove('active'); curSub = null; }
+    }
+
+    if (activeSub !== curSub) {
+      if (curSub) curSub.link.classList.remove('active');
+      if (activeSub) activeSub.link.classList.add('active');
+      curSub = activeSub;
+    }
   }
 
   var ticking = false;
@@ -320,7 +366,8 @@ def render_body(text, is_last_section):
             i += 1
             continue
         if first.startswith("### "):
-            out.append("<h3>%s</h3>" % inline(first[4:]))
+            h3_raw = first[4:].strip()
+            out.append('<h3 id="%s">%s</h3>' % (slugify(strip_md(h3_raw)), inline(h3_raw)))
         elif first.startswith("[MODEL"):
             caption = None
             if len(lines) > 1 and lines[1].strip().startswith("*"):
@@ -425,8 +472,22 @@ def build():
 
     # table of contents
     toc = ['<nav class="toc">', '  <span class="label">Contents</span>', '  <ol>']
-    for ttl, _ in numbered:
-        toc.append('    <li><a href="#%s">%s</a></li>' % (slugify(ttl), ttl))
+    for ttl, body in numbered:
+        subsecs = re.findall(r'^### (.+)$', body, re.M)
+        li_open = '    <li><a href="#%s">%s</a>' % (slugify(ttl), ttl)
+        if subsecs:
+            sub_items = "\n".join(
+                '          <li><a href="#%s">%s</a></li>' % (slugify(strip_md(s).strip()), inline(s))
+                for s in subsecs
+            )
+            toc.append(
+                li_open +
+                '\n      <ul class="subsections">\n' +
+                sub_items +
+                '\n      </ul>\n    </li>'
+            )
+        else:
+            toc.append(li_open + '</li>')
     toc.append("  </ol>")
     toc.append("</nav>")
     toc_html = "\n".join(toc)

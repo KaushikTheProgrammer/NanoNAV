@@ -182,10 +182,38 @@ nav.toc ol { margin: 0; padding-left: 1.2rem; }
     font-weight: 650;
     border-left-color: var(--accent);
   }
+  /* subsections: hidden until their parent section is active */
+  .toc-rail .subsections {
+    display: none;
+    list-style: none;
+    margin: 0.25rem 0 0.1rem 0.55rem;
+    padding: 0;
+    border-left: 1px solid var(--faint);
+  }
+  .toc-rail li.section-active > .subsections {
+    display: block;
+  }
+  .toc-rail .subsections li { margin: 0.18rem 0; }
+  .toc-rail .subsections a {
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: var(--faint);
+    border-left: none;
+    margin-left: 0;
+    padding-left: 0.55rem;
+  }
+  .toc-rail .subsections a:hover { color: var(--text); }
+  .toc-rail .subsections a.active {
+    color: var(--accent);
+    font-weight: 500;
+    border-left: none;
+  }
 }
 nav.toc li { margin: 0.15rem 0; }
 nav.toc a { color: var(--text); }
 nav.toc a:hover { color: var(--accent); }
+/* hide subsections in the compact inline TOC (mobile/narrow) */
+nav.toc .subsections { display: none; }
 
 /* ---- figures ---- */
 figure {
