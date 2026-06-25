@@ -120,7 +120,7 @@ The key architecture choice is that the perception backbone, the VAE, is **froze
 Training uses [**Diffusion Forcing**](https://arxiv.org/abs/2407.01392) (Chen et al., 2024), which gives each frame its own independent noise level rather than corrupting every frame to one shared level. With causal masking, this lets the network roll itself out autoregressively at inference, predicting a frame, treating it as clean context, and using that to predict the next, which is exactly the loop CEM drives. The transformer learns to **denoise the next frame's latent** given recent frames and the action chunk. The action enters through a small **additive embedding**, a choice that turns out to matter and that I revisit in [§5](#road-to-planning). Training ran for roughly **12,000 steps on a single rented H100** using AdamW with effective batch 64 in bf16, completing in a single overnight run.
 
 [FIGURE: ✅ assets/long_0_cmp.mp4 — autoplay/loop/muted]
-*Imagined vs. real. Left: a world-model rollout from 4 context frames and a recorded action sequence. Right: what the camera actually saw. Blurry, but directionally right.*
+*Real vs. imagined. Left: what the camera actually saw. Right: a world-model rollout from 4 context frames and a recorded action sequence. Blurry, but directionally right.*
 
 ---
 
