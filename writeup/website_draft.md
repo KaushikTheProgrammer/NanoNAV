@@ -32,7 +32,7 @@ I taught a [**LeKiwi**](https://github.com/SIGRobotics-UIUC/LeKiwi) mobile manip
 
 ---
 
-## Background — why I built this
+## Background
 
 I've been fascinated by world model research lately. The field is a collection of competing bets on what the right output is, what the right training signal is, and where the real leverage lies. Dr. Fei-Fei Li describes the current landscape in [**A Functional Taxonomy of World Models**](https://www.worldlabs.ai/blog/taxonomy-of-world-models). She organizes them by what they output. A **Renderer** outputs pixels meant for human eyes, where visual fidelity is what matters. A **Simulator** outputs state, a geometrically and physically faithful representation that programs can compute on. A **Planner** outputs *actions*. Given observations and a goal, it decides what the agent should do next, closing the perception–action loop. She argues these eventually converge into unified models, with simulation as the linchpin.
 

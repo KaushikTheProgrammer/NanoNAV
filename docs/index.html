@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NanoNAV — real-robot navigation with Nano World Models</title>
 <meta name="description" content="Latent-space planning with a Nano World Model drives a LeKiwi robot to goal images — learned from 25 minutes of driving, no maps, no depth, no pose.">
-<link rel="stylesheet" href="style.css?v=1782362231">
+<link rel="stylesheet" href="style.css?v=1782362572">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
 <body>
@@ -32,7 +32,7 @@
 <nav class="toc">
   <span class="label">Contents</span>
   <ol>
-    <li><a href="#background-why-i-built-this">Background — why I built this</a></li>
+    <li><a href="#background">Background</a></li>
     <li><a href="#the-problem-statement">The Problem Statement</a></li>
     <li><a href="#robot-hardware">Robot Hardware</a></li>
     <li><a href="#data">Data</a></li>
@@ -42,7 +42,7 @@
   </ol>
 </nav>
 
-<h2 id="background-why-i-built-this">1 · Background — why I built this</h2>
+<h2 id="background">1 · Background</h2>
 
 <p>I've been fascinated by world model research lately. The field is a collection of competing bets on what the right output is, what the right training signal is, and where the real leverage lies. Dr. Fei-Fei Li describes the current landscape in <a href="https://www.worldlabs.ai/blog/taxonomy-of-world-models"><strong>A Functional Taxonomy of World Models</strong></a>. She organizes them by what they output. A <strong>Renderer</strong> outputs pixels meant for human eyes, where visual fidelity is what matters. A <strong>Simulator</strong> outputs state, a geometrically and physically faithful representation that programs can compute on. A <strong>Planner</strong> outputs <em>actions</em>. Given observations and a goal, it decides what the agent should do next, closing the perception–action loop. She argues these eventually converge into unified models, with simulation as the linchpin.</p>
 
