@@ -36,7 +36,7 @@ MD = os.path.join(ROOT, "writeup", "website_draft.md")
 OUT = os.path.join(ROOT, "docs", "index.html")
 ASSETS_DIR = os.path.join(ROOT, "docs", "assets")
 
-MEDIA_RE = re.compile(r"[\w./-]+\.(?:png|jpe?g|gif|svg|mp4|webm)", re.I)
+MEDIA_RE = re.compile(r"[\w./-]+\.(?:png|jpe?g|gif|svg|mp4|webm|glb|usdz)", re.I)
 _pair_counter = [0]
 
 
@@ -54,6 +54,7 @@ HEAD = """<!DOCTYPE html>
 <meta name="description" content="Latent-space planning with a Nano World Model drives a LeKiwi robot to goal images — learned from 25 minutes of driving, no maps, no depth, no pose.">
 <link rel="stylesheet" href="style.css?v=%s">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
 </head>
 <body>
 """
@@ -223,6 +224,28 @@ def render_figure(marker, caption):
     return "<figure%s>%s\n  %s\n</figure>" % (cls, inner, cap)
 
 
+def render_model(marker, caption):
+    """Render [MODEL: assets/foo.glb assets/foo.usdz — desc] as a <model-viewer>."""
+    paths = MEDIA_RE.findall(marker)
+    glb  = next((p for p in paths if p.lower().endswith(".glb")),  None)
+    usdz = next((p for p in paths if p.lower().endswith(".usdz")), None)
+    if not glb:
+        return '<div class="pending"><b>Pending 3-D model.</b> %s</div>' % inline(marker)
+    glb_base  = os.path.basename(glb)
+    glb_src   = "assets/" + glb_base
+    usdz_attr = ('ios-src="assets/%s"' % os.path.basename(usdz)) if usdz else ""
+    cap = caption_html(caption) if caption else ""
+    return (
+        '<figure>\n'
+        '  <model-viewer src="{glb}" {usdz} alt="3-D model" '
+        'camera-controls auto-rotate shadow-intensity="1" '
+        'style="width:100%;height:480px;background:#f5f5f0;">'
+        '</model-viewer>\n'
+        '  {cap}\n'
+        '</figure>'
+    ).format(glb=glb_src, usdz=usdz_attr, cap=cap)
+
+
 def render_figure_pair(marker, caption):
     """Render two synced side-by-side videos for [FIGURE_PAIR: a.mp4 | b.mp4 ...]."""
     paths = MEDIA_RE.findall(marker)
@@ -298,6 +321,16 @@ def render_body(text, is_last_section):
             continue
         if first.startswith("### "):
             out.append("<h3>%s</h3>" % inline(first[4:]))
+        elif first.startswith("[MODEL"):
+            caption = None
+            if len(lines) > 1 and lines[1].strip().startswith("*"):
+                caption = lines[1].strip()
+            elif i + 1 < len(blocks):
+                nb = blocks[i + 1].strip()
+                if nb.startswith("*") and nb.endswith("*") and "\n" not in nb:
+                    caption = nb
+                    i += 1
+            out.append(render_model(first, caption))
         elif first.startswith("[FIGURE_PAIR"):
             caption = None
             if len(lines) > 1 and lines[1].strip().startswith("*"):

@@ -77,6 +77,9 @@ The stock LeKiwi uses a low front-facing webcam and a gripper webcam. I replaced
 [FIGURE: ✅ assets/lekiwi-mount.jpg — photo of the LeKiwi with the custom overhead camera mount]
 *The rig. The LeKiwi base with the arm parked and the custom mount holding the overhead camera that everything downstream depends on.*
 
+[MODEL: ✅ assets/lekiwi.glb assets/lekiwi.usdz — interactive 3-D scan of the LeKiwi robot]
+*Drag to orbit, scroll to zoom. On iPhone, tap the AR button to place the robot in your space.*
+
 ## 3 · Data
 
 The most important constraint on data collection was what the model actually needs to learn. At inference time the [planner](#road-to-a-working-planner) proposes dozens of candidate action sequences, including bad ones, and the world model has to predict what each would produce in order to rank them. Training only on clean, goal-directed demonstrations would leave the model blind to wrong actions and unable to help the planner reject them. So the collection goal was coverage, not demonstration: fill the space, vary headings, and make sure the model has seen the consequences of driving in different directions.
