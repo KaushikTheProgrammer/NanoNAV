@@ -197,7 +197,7 @@ nav.toc ol { margin: 0; padding-left: 1.2rem; }
   .toc-rail .subsections a {
     font-size: 0.72rem;
     font-weight: 400;
-    color: var(--faint);
+    color: var(--muted);
     border-left: none;
     margin-left: 0;
     padding-left: 0.55rem;
