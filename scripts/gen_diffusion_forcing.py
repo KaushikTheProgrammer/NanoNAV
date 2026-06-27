@@ -1,15 +1,19 @@
 """
 Diffusion Forcing concept diagram — modern animated SVG.
 
-Top panel    — Standard diffusion: every frame shares one noise level, denoised
-               in lockstep (grain pulses in unison, no frame is ever clean alone).
-Bottom panel — Diffusion Forcing: each frame carries its own noise level, so the
-               context frames stay clean (sigma=0) while the target frame visibly
-               denoises and a next frame is predicted — the autoregressive loop.
+Top panel    — Standard diffusion: every frame shares ONE noise level. The grain
+               and the noise bars move in lockstep (always identical sigma).
+Bottom panel — Diffusion Forcing: every frame carries its OWN independent noise
+               level. Each frame's grain + sigma bar animate on a different clock
+               (different amplitude, period and phase), so the bars bob out of
+               sync — at any instant the six sigmas are all different. That
+               independence (some frames clean, some noisy, freely mixed) is what
+               lets the model keep clean frames as context and denoise the next,
+               i.e. roll out autoregressively at inference.
 
 Self-contained animated SVG. SMIL <animate> (grain opacity + noise-bar height)
-and CSS keyframes run inside an <img>, so the denoising is visible on the
-deployed page with no JS and stays crisp at any zoom.
+runs inside an <img>, so the motion is visible on the deployed page with no JS
+and stays crisp at any zoom.
 """
 import os
 
@@ -98,9 +102,9 @@ parts.append(
     '0.42 0.42 0.42 0 0"/>'
     '</filter>')
 parts.append(
-    f'<marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" '
-    f'orient="auto" markerUnits="userSpaceOnUse">'
-    f'<path d="M0,0 L7.5,3 L0,6 Z" fill="{PURP_EC}"/></marker>')
+    '<linearGradient id="nscale" x1="0" y1="0" x2="1" y2="0">'
+    '<stop offset="0" stop-color="#efe2d2"/><stop offset="1" stop-color="#a8451f"/>'
+    '</linearGradient>')
 parts.append('</defs>')
 
 # ── card + title ───────────────────────────────────────────────────────────
@@ -134,67 +138,54 @@ parts.append(f'<text x="{X0-10}" y="{abase-8}" text-anchor="end" font-size="10.5
 parts.append(f'<line x1="40" y1="324" x2="{W-40}" y2="324" stroke="#e7dcc0" stroke-width="1.3"/>')
 
 # ════════════════════════════ PANEL B — forcing ═══════════════════════════
+# Each frame gets its OWN noise level, animated on its own clock so the six
+# sigmas drift out of sync: (min sigma, max sigma, period s, phase offset s).
 by = 372
+bbase = by + FH + 48
+MAXBAR = 42
 parts.append(f'<text x="{X0}" y="350" font-size="13.5" font-weight="700" fill="{INK}">'
              f'Diffusion Forcing <tspan font-weight="400" fill="{MUTE}" font-style="italic">'
-             f'— independent noise per frame → autoregressive rollout</tspan></text>')
+             f'— an independent noise level per frame</tspan></text>')
 
-# 5 clean context frames
-for i in range(5):
+indep = [
+    (0.08, 0.55, 3.0, 0.0),
+    (0.62, 1.00, 4.2, 1.1),
+    (0.00, 0.28, 2.4, 0.6),
+    (0.34, 0.82, 3.6, 2.0),
+    (0.18, 0.92, 5.0, 0.4),
+    (0.46, 0.96, 2.8, 1.7),
+]
+SPL = 'calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"'
+for i, (a, b, period, off) in enumerate(indep):
     fx = X0 + i * STEP
-    parts.append(frame(fx, by, "ctx", f"f{i+1}", BLUE_EC))
-    parts.append(f'<text x="{fx+FW/2}" y="{by-12}" text-anchor="middle" font-size="11.5" '
-                 f'font-style="italic" fill="{BLUE_EC}">context</text>')
-
-# target frame (denoising)
-tgt_x = X0 + 5 * STEP
-tgt_anim = ('<animate attributeName="opacity" values="0.78;0.78;0;0;0.78" '
-            'keyTimes="0;0.18;0.55;0.86;1" dur="4s" repeatCount="indefinite"/>')
-parts.append(frame(tgt_x, by, "tgt", "f6", AMBR_EC, noise=(0.78, tgt_anim)))
-parts.append(f'<text x="{tgt_x+FW/2}" y="{by-12}" text-anchor="middle" font-size="11.5" '
-             f'font-style="italic" fill="{AMBR_EC}">target · denoising</text>')
-
-# predicted frame (fades in once target is clean)
-pred_x = tgt_x + STEP + 16
-parts.append('<g opacity="0"><animate attributeName="opacity" values="0;0;1;1;0" '
-             'keyTimes="0;0.55;0.66;0.9;1" dur="4s" repeatCount="indefinite"/>'
-             + frame(pred_x, by, "pred", "f&#770;7", PURP_EC, dashed=True)
-             + f'<text x="{pred_x+FW/2}" y="{by-12}" text-anchor="middle" font-size="11.5" '
-               f'font-style="italic" fill="{PURP_EC}">predicted</text>'
-             + '</g>')
-
-# arrow target -> predicted
-parts.append('<g opacity="0"><animate attributeName="opacity" values="0;0;1;1;0" '
-             'keyTimes="0;0.5;0.66;0.9;1" dur="4s" repeatCount="indefinite"/>'
-             f'<path d="M{tgt_x+FW+4},{by+FH/2} L{pred_x-4},{by+FH/2}" fill="none" '
-             f'stroke="{PURP_EC}" stroke-width="1.8" marker-end="url(#ah)"/>'
-             f'<text x="{(tgt_x+FW+pred_x)/2}" y="{by+FH/2-8}" text-anchor="middle" '
-             f'font-size="10.5" font-style="italic" fill="{PURP_EC}">predict next</text>'
-             '</g>')
-
-# noise bars row B
-bbase = by + FH + 48
-for i in range(5):
-    cx = X0 + i * STEP + FW / 2
-    parts.append(bar(cx, bbase, "ctx", "σ = 0", BLUE_EC))
-# target bar shrinking
-tb = ('<animate attributeName="height" values="38;38;0;0;38" keyTimes="0;0.18;0.55;0.86;1" '
-      'dur="4s" repeatCount="indefinite"/>'
-      '<animate attributeName="y" values="%d;%d;%d;%d;%d" keyTimes="0;0.18;0.55;0.86;1" '
-      'dur="4s" repeatCount="indefinite"/>' % (bbase-38, bbase-38, bbase, bbase, bbase-38))
-parts.append(bar(tgt_x + FW / 2, bbase, "tgt", "σ: 1→0", AMBR_EC, anim=tb))
-parts.append(bar(pred_x + FW / 2, bbase, "pred", "σ→0", PURP_EC))
+    cx = fx + FW / 2
+    # grain overlay opacity tracks sigma, on its own clock
+    op_anim = (f'<animate attributeName="opacity" values="{a*0.82:.3f};{b*0.82:.3f};{a*0.82:.3f}" '
+               f'dur="{period}s" begin="-{off}s" repeatCount="indefinite" {SPL}/>')
+    parts.append(frame(fx, by, "std", f"f{i+1}", MUTE, noise=(a * 0.82, op_anim)))
+    # sigma bar, same independent clock
+    ha, hb = a * MAXBAR, b * MAXBAR
+    bar_anim = (
+        f'<animate attributeName="height" values="{ha:.1f};{hb:.1f};{ha:.1f}" '
+        f'dur="{period}s" begin="-{off}s" repeatCount="indefinite" {SPL}/>'
+        f'<animate attributeName="y" values="{bbase-ha:.1f};{bbase-hb:.1f};{bbase-ha:.1f}" '
+        f'dur="{period}s" begin="-{off}s" repeatCount="indefinite" {SPL}/>')
+    lbl = f'σ<tspan baseline-shift="sub" font-size="8">{i+1}</tspan>'
+    parts.append(bar(cx, bbase, "tgt", lbl, NOISE, anim=bar_anim))
 parts.append(f'<text x="{X0-10}" y="{bbase-8}" text-anchor="end" font-size="10.5" '
              f'font-style="italic" fill="{NOISE}">noise</text>')
+parts.append(f'<text x="{X0 + 6*STEP - GAP}" y="350" text-anchor="end" font-size="11" '
+             f'font-style="italic" fill="{MUTE}">clean frames can be context while the next '
+             f'is denoised</text>')
 
-# ── legend ─────────────────────────────────────────────────────────────────
-leg = [("#d3e3e3", BLUE_EC, "Context frame (σ = 0, clean)", 250),
-       ("#f4dcc0", AMBR_EC, "Target frame (denoising)", 560),
-       ("#e2d2e6", PURP_EC, "Predicted next frame", 830)]
-for fc, ec, txt, x in leg:
-    parts.append(f'<rect x="{x}" y="{H-26}" width="18" height="13" rx="3" '
-                 f'fill="{fc}" stroke="{ec}" stroke-width="1.5"/>')
-    parts.append(f'<text x="{x+25}" y="{H-16}" font-size="12.5" fill="{INK}">{txt}</text>')
+# ── legend — noise-level scale ─────────────────────────────────────────────
+gx, gw, gy = 505, 150, H - 26
+parts.append(f'<text x="{gx-12}" y="{gy+11}" text-anchor="end" font-size="12" '
+             f'fill="{INK}">σ = 0 clean</text>')
+parts.append(f'<rect x="{gx}" y="{gy}" width="{gw}" height="14" rx="3" '
+             f'fill="url(#nscale)" stroke="#d8c7ab" stroke-width="1"/>')
+parts.append(f'<text x="{gx+gw+12}" y="{gy+11}" font-size="12" '
+             f'fill="{INK}">σ = 1 noisy</text>')
 
 parts.append('</svg>')
 
