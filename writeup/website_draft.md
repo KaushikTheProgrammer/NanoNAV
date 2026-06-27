@@ -80,8 +80,8 @@ The most important constraint on data collection was what the model actually nee
 
 Collection was entirely manual, using **LeRobot's `record` pipeline** to timestamp and synchronize the overhead camera with commanded base velocities at 30 Hz. For teleoperation, I connected a PS5 DualSense over USB to drive forward velocity on the left stick and yaw rate on the right, with no strafe binding so sideways velocity is zero by construction.
 
-[FIGURE: 🆕 assets/ps5-controller.jpg — photo of the PS5 DualSense used for teleoperation]
-*The full data-collection rig. A PS5 DualSense over USB mapped to forward velocity and yaw rate. 25 minutes of driving with this produced the entire dataset.*
+[FIGURE: ✅ assets/controller-setup.jpg — photo of the PS5 DualSense used for teleoperation]
+*The full data-collection rig. A PS5 DualSense wired over USB-C to the laptop, with the left stick mapped to forward velocity and the right to yaw rate. 25 minutes of driving with this produced the entire dataset.*
 
 The resulting dataset is **50 teleoperated episodes, 44,926 frames at 30 Hz**, available on HuggingFace at [kaushikpraka/wm-smallarea_merged](https://huggingface.co/datasets/kaushikpraka/wm-smallarea_merged) and viewable in the [LeRobot visualizer](https://huggingface.co/spaces/lerobot/visualize_dataset). It covers a roughly 2 m × 5 m carpeted area with blinds closed and room lights on for consistent illumination, furniture in fixed positions as landmarks. Trajectories included arcs, pure forward runs, rotations in both directions, and occasional stationary pauses as identity anchors where the action is exactly `(0, 0)`. I varied start positions and headings across episodes while keeping environmental conditions stable, and drove only forward with no reverse commands. That last choice matters later when building the navigation graph.
 

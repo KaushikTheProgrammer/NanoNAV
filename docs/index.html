@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NanoNAV — real-robot navigation with Nano World Models</title>
 <meta name="description" content="Latent-space planning with a Nano World Model drives a LeKiwi robot to goal images — learned from 25 minutes of driving, no maps, no depth, no pose.">
-<link rel="stylesheet" href="style.css?v=1782595568">
+<link rel="stylesheet" href="style.css?v=1782600889">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
 </head>
@@ -109,7 +109,10 @@
 
 <p>Collection was entirely manual, using <strong>LeRobot's <code>record</code> pipeline</strong> to timestamp and synchronize the overhead camera with commanded base velocities at 30 Hz. For teleoperation, I connected a PS5 DualSense over USB to drive forward velocity on the left stick and yaw rate on the right, with no strafe binding so sideways velocity is zero by construction.</p>
 
-<div class="pending"><b>Pending figure.</b> The full data-collection rig. A PS5 DualSense over USB mapped to forward velocity and yaw rate. 25 minutes of driving with this produced the entire dataset.</div>
+<figure>
+  <img src="assets/controller-setup.jpg?v=4838bbcc" alt="">
+  <figcaption><b>The full data-collection rig.</b> A PS5 DualSense wired over USB-C to the laptop, with the left stick mapped to forward velocity and the right to yaw rate. 25 minutes of driving with this produced the entire dataset.</figcaption>
+</figure>
 
 <p>The resulting dataset is <strong>50 teleoperated episodes, 44,926 frames at 30 Hz</strong>, available on HuggingFace at <a href="https://huggingface.co/datasets/kaushikpraka/wm-smallarea_merged">kaushikpraka/wm-smallarea_merged</a> and viewable in the <a href="https://huggingface.co/spaces/lerobot/visualize_dataset">LeRobot visualizer</a>. It covers a roughly 2 m × 5 m carpeted area with blinds closed and room lights on for consistent illumination, furniture in fixed positions as landmarks. Trajectories included arcs, pure forward runs, rotations in both directions, and occasional stationary pauses as identity anchors where the action is exactly <code>(0, 0)</code>. I varied start positions and headings across episodes while keeping environmental conditions stable, and drove only forward with no reverse commands. That last choice matters later when building the navigation graph.</p>
 
