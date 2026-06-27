@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NanoNAV — real-robot navigation with Nano World Models</title>
 <meta name="description" content="Latent-space planning with a Nano World Model drives a LeKiwi robot to goal images — learned from 25 minutes of driving, no maps, no depth, no pose.">
-<link rel="stylesheet" href="style.css?v=1782588002">
+<link rel="stylesheet" href="style.css?v=1782588835">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
 </head>
@@ -144,14 +144,14 @@
 <p>The key architecture choice is that the perception backbone, the VAE, is <strong>frozen and pretrained</strong>, while the 160M transformer is trained <strong>from scratch</strong> on my 50 episodes, making it a scene-specific latent dynamics model riding on a general perceptual backbone. It learns the physics of <em>this</em> room and generalizes to new trajectories and goals within it, not across environments.</p>
 
 <figure>
-  <img src="assets/nanowm_arch.png" alt="">
+  <img src="assets/nanowm_arch.svg" alt="">
   <figcaption><b>NanoWM architecture.</b> Context latents from the frozen VAE feed into a 160M transformer, conditioned on the action chunk via AdaLN. The predicted next latent is what the planner scores against the goal. The token-to-RGB decoder exists only for visualization and is never used during planning.</figcaption>
 </figure>
 
 <p>Training uses <a href="https://arxiv.org/abs/2407.01392"><strong>Diffusion Forcing</strong></a> (Chen et al., 2024), which gives each frame its own independent noise level rather than corrupting every frame to one shared level. With causal masking, this lets the network roll itself out autoregressively at inference, predicting a frame, treating it as clean context, and using that to predict the next, which is exactly the loop CEM drives. The transformer learns to <strong>denoise the next frame's latent</strong> given recent frames and the action chunk. The action enters through a small <strong>additive embedding</strong>, a choice that turns out to matter and that I revisit in <a href="#road-to-planning">§5</a>. Training ran for roughly <strong>12,000 steps on a single rented H100</strong> using AdamW with effective batch 64 in bf16, completing in a single overnight run.</p>
 
 <figure>
-  <img src="assets/diffusion_forcing.png" alt="">
+  <img src="assets/diffusion_forcing.svg" alt="">
   <figcaption><b>Diffusion Forcing vs standard diffusion.</b> Standard diffusion corrupts every frame to the same noise level. Diffusion Forcing assigns each frame its own independent noise level, so context frames can be clean (σ=0) while the target frame is denoised. With causal masking this enables autoregressive rollout at inference: predict the next frame, treat it as clean context, repeat.</figcaption>
 </figure>
 
@@ -292,10 +292,7 @@
 
 <p>Because the action now multiplicatively controls the scale of the entire feature map at every layer, the model cannot reduce its influence by tuning a weight toward zero. On the same semantic latents where additive injection collapsed to 0.0028 RMS, AdaLN held at 0.2 RMS.</p>
 
-<figure>
-  <img src="assets/injection_comparison.png" alt="">
-  <figcaption><b>Additive injection (left) lets the model learn W→0, cutting the gradient path through the action.</b> AdaLN (right) predicts the scale and shift of every LayerNorm from the action embedding, so the action multiplicatively gates the entire feature map. The model cannot suppress it without collapsing activations entirely, keeping the gradient path open throughout training.</figcaption>
-</figure>
+<div class="pending"><b>Pending figure.</b> Additive injection (left) lets the model learn W→0, cutting the gradient path through the action. AdaLN (right) predicts the scale and shift of every LayerNorm from the action embedding, so the action multiplicatively gates the entire feature map. The model cannot suppress it without collapsing activations entirely, keeping the gradient path open throughout training.</div>
 
 <p>In these videos the yellow arrow shows the action vector the robot executed. The goal image is shown as the 4th image in the sequence.</p>
 

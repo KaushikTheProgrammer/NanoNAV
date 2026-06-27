@@ -1,0 +1,191 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 632" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="Diffusion forcing vs standard diffusion">
+<defs>
+<linearGradient id="card" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f6f7fb"/></linearGradient>
+<clipPath id="fclip"><rect width="138" height="96" rx="12"/></clipPath>
+<filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="7" stitchTiles="stitch"/><feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.42 0.42 0.42 0 0"/></filter>
+<marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7.5,3 L0,6 Z" fill="#7c4dbc"/></marker>
+</defs>
+<rect x="1" y="1" width="1158" height="630" rx="18" fill="url(#card)" stroke="#e6e8ee" stroke-width="1.5"/>
+<text x="580.0" y="36" text-anchor="middle" font-size="19" font-weight="700" fill="#1a1f2b">Diffusion Forcing vs Standard Diffusion</text>
+<text x="49" y="74" font-size="13.5" font-weight="700" fill="#1a1f2b">Standard Diffusion <tspan font-weight="400" fill="#6b7280" font-style="italic">— one shared noise level, denoised in lockstep</tspan></text>
+<g transform="translate(49,96)">
+<linearGradient id="gstd49" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1f2f5"/><stop offset="1" stop-color="#e1e3ea"/></linearGradient>
+<g clip-path="url(#fclip)">
+<rect width="138" height="96" fill="url(#gstd49)"/>
+<line x1="0" y1="60" x2="138" y2="60" stroke="#b6bcc8" stroke-width="1.4" opacity="0.55"/>
+<circle cx="91" cy="38" r="11" fill="#b6bcc8" opacity="0.9"/>
+<rect width="138" height="96" filter="url(#grain)" opacity="0.6"><animate attributeName="opacity" values="0.6;0.6;0.28;0.6;0.6" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/></rect>
+</g>
+<rect width="138" height="96" rx="12" fill="none" stroke="#9aa1ad" stroke-width="2"/>
+<text x="69.0" y="44" text-anchor="middle" font-size="18" font-style="italic" font-weight="600" fill="#1a1f2b" opacity="0.92">f1</text>
+</g>
+<g transform="translate(203,96)">
+<linearGradient id="gstd203" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1f2f5"/><stop offset="1" stop-color="#e1e3ea"/></linearGradient>
+<g clip-path="url(#fclip)">
+<rect width="138" height="96" fill="url(#gstd203)"/>
+<line x1="0" y1="60" x2="138" y2="60" stroke="#b6bcc8" stroke-width="1.4" opacity="0.55"/>
+<circle cx="91" cy="38" r="11" fill="#b6bcc8" opacity="0.9"/>
+<rect width="138" height="96" filter="url(#grain)" opacity="0.6"><animate attributeName="opacity" values="0.6;0.6;0.28;0.6;0.6" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/></rect>
+</g>
+<rect width="138" height="96" rx="12" fill="none" stroke="#9aa1ad" stroke-width="2"/>
+<text x="69.0" y="44" text-anchor="middle" font-size="18" font-style="italic" font-weight="600" fill="#1a1f2b" opacity="0.92">f2</text>
+</g>
+<g transform="translate(357,96)">
+<linearGradient id="gstd357" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1f2f5"/><stop offset="1" stop-color="#e1e3ea"/></linearGradient>
+<g clip-path="url(#fclip)">
+<rect width="138" height="96" fill="url(#gstd357)"/>
+<line x1="0" y1="60" x2="138" y2="60" stroke="#b6bcc8" stroke-width="1.4" opacity="0.55"/>
+<circle cx="91" cy="38" r="11" fill="#b6bcc8" opacity="0.9"/>
+<rect width="138" height="96" filter="url(#grain)" opacity="0.6"><animate attributeName="opacity" values="0.6;0.6;0.28;0.6;0.6" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/></rect>
+</g>
+<rect width="138" height="96" rx="12" fill="none" stroke="#9aa1ad" stroke-width="2"/>
+<text x="69.0" y="44" text-anchor="middle" font-size="18" font-style="italic" font-weight="600" fill="#1a1f2b" opacity="0.92">f3</text>
+</g>
+<g transform="translate(511,96)">
+<linearGradient id="gstd511" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1f2f5"/><stop offset="1" stop-color="#e1e3ea"/></linearGradient>
+<g clip-path="url(#fclip)">
+<rect width="138" height="96" fill="url(#gstd511)"/>
+<line x1="0" y1="60" x2="138" y2="60" stroke="#b6bcc8" stroke-width="1.4" opacity="0.55"/>
+<circle cx="91" cy="38" r="11" fill="#b6bcc8" opacity="0.9"/>
+<rect width="138" height="96" filter="url(#grain)" opacity="0.6"><animate attributeName="opacity" values="0.6;0.6;0.28;0.6;0.6" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/></rect>
+</g>
+<rect width="138" height="96" rx="12" fill="none" stroke="#9aa1ad" stroke-width="2"/>
+<text x="69.0" y="44" text-anchor="middle" font-size="18" font-style="italic" font-weight="600" fill="#1a1f2b" opacity="0.92">f4</text>
+</g>
+<g transform="translate(665,96)">
+<linearGradient id="gstd665" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1f2f5"/><stop offset="1" stop-color="#e1e3ea"/></linearGradient>
+<g clip-path="url(#fclip)">
+<rect width="138" height="96" fill="url(#gstd665)"/>
+<line x1="0" y1="60" x2="138" y2="60" stroke="#b6bcc8" stroke-width="1.4" opacity="0.55"/>
+<circle cx="91" cy="38" r="11" fill="#b6bcc8" opacity="0.9"/>
+<rect width="138" height="96" filter="url(#grain)" opacity="0.6"><animate attributeName="opacity" values="0.6;0.6;0.28;0.6;0.6" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/></rect>
+</g>
+<rect width="138" height="96" rx="12" fill="none" stroke="#9aa1ad" stroke-width="2"/>
+<text x="69.0" y="44" text-anchor="middle" font-size="18" font-style="italic" font-weight="600" fill="#1a1f2b" opacity="0.92">f5</text>
+</g>
+<g transform="translate(819,96)">
+<linearGradient id="gstd819" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1f2f5"/><stop offset="1" stop-color="#e1e3ea"/></linearGradient>
+<g clip-path="url(#fclip)">
+<rect width="138" height="96" fill="url(#gstd819)"/>
+<line x1="0" y1="60" x2="138" y2="60" stroke="#b6bcc8" stroke-width="1.4" opacity="0.55"/>
+<circle cx="91" cy="38" r="11" fill="#b6bcc8" opacity="0.9"/>
+<rect width="138" height="96" filter="url(#grain)" opacity="0.6"><animate attributeName="opacity" values="0.6;0.6;0.28;0.6;0.6" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/></rect>
+</g>
+<rect width="138" height="96" rx="12" fill="none" stroke="#9aa1ad" stroke-width="2"/>
+<text x="69.0" y="44" text-anchor="middle" font-size="18" font-style="italic" font-weight="600" fill="#1a1f2b" opacity="0.92">f6</text>
+</g>
+<rect x="96.0" width="44" rx="2" fill="#e0654f" opacity="0.82"><animate attributeName="height" values="22;22;10;22;22" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/><animate attributeName="y" values="218;218;230;218;218" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/></rect>
+<text x="118.0" y="258" text-anchor="middle" font-size="11.5" fill="#e0654f">σ = 0.6</text>
+<rect x="250.0" width="44" rx="2" fill="#e0654f" opacity="0.82"><animate attributeName="height" values="22;22;10;22;22" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/><animate attributeName="y" values="218;218;230;218;218" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/></rect>
+<text x="272.0" y="258" text-anchor="middle" font-size="11.5" fill="#e0654f">σ = 0.6</text>
+<rect x="404.0" width="44" rx="2" fill="#e0654f" opacity="0.82"><animate attributeName="height" values="22;22;10;22;22" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/><animate attributeName="y" values="218;218;230;218;218" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/></rect>
+<text x="426.0" y="258" text-anchor="middle" font-size="11.5" fill="#e0654f">σ = 0.6</text>
+<rect x="558.0" width="44" rx="2" fill="#e0654f" opacity="0.82"><animate attributeName="height" values="22;22;10;22;22" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/><animate attributeName="y" values="218;218;230;218;218" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/></rect>
+<text x="580.0" y="258" text-anchor="middle" font-size="11.5" fill="#e0654f">σ = 0.6</text>
+<rect x="712.0" width="44" rx="2" fill="#e0654f" opacity="0.82"><animate attributeName="height" values="22;22;10;22;22" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/><animate attributeName="y" values="218;218;230;218;218" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/></rect>
+<text x="734.0" y="258" text-anchor="middle" font-size="11.5" fill="#e0654f">σ = 0.6</text>
+<rect x="866.0" width="44" rx="2" fill="#e0654f" opacity="0.82"><animate attributeName="height" values="22;22;10;22;22" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/><animate attributeName="y" values="218;218;230;218;218" keyTimes="0;0.2;0.5;0.8;1" dur="4s" repeatCount="indefinite"/></rect>
+<text x="888.0" y="258" text-anchor="middle" font-size="11.5" fill="#e0654f">σ = 0.6</text>
+<text x="39" y="232" text-anchor="end" font-size="10.5" font-style="italic" fill="#e0654f">noise</text>
+<line x1="40" y1="324" x2="1120" y2="324" stroke="#e6e8ee" stroke-width="1.3"/>
+<text x="49" y="350" font-size="13.5" font-weight="700" fill="#1a1f2b">Diffusion Forcing <tspan font-weight="400" fill="#6b7280" font-style="italic">— independent noise per frame → autoregressive rollout</tspan></text>
+<g transform="translate(49,372)">
+<linearGradient id="gctx49" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef5fd"/><stop offset="1" stop-color="#dae8fb"/></linearGradient>
+<g clip-path="url(#fclip)">
+<rect width="138" height="96" fill="url(#gctx49)"/>
+<line x1="0" y1="60" x2="138" y2="60" stroke="#6aa3df" stroke-width="1.4" opacity="0.55"/>
+<circle cx="91" cy="38" r="11" fill="#6aa3df" opacity="0.9"/>
+</g>
+<rect width="138" height="96" rx="12" fill="none" stroke="#3b7dc4" stroke-width="2"/>
+<text x="69.0" y="44" text-anchor="middle" font-size="18" font-style="italic" font-weight="600" fill="#163a60" opacity="0.92">f1</text>
+</g>
+<text x="118.0" y="360" text-anchor="middle" font-size="11.5" font-style="italic" fill="#3b7dc4">context</text>
+<g transform="translate(203,372)">
+<linearGradient id="gctx203" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef5fd"/><stop offset="1" stop-color="#dae8fb"/></linearGradient>
+<g clip-path="url(#fclip)">
+<rect width="138" height="96" fill="url(#gctx203)"/>
+<line x1="0" y1="60" x2="138" y2="60" stroke="#6aa3df" stroke-width="1.4" opacity="0.55"/>
+<circle cx="91" cy="38" r="11" fill="#6aa3df" opacity="0.9"/>
+</g>
+<rect width="138" height="96" rx="12" fill="none" stroke="#3b7dc4" stroke-width="2"/>
+<text x="69.0" y="44" text-anchor="middle" font-size="18" font-style="italic" font-weight="600" fill="#163a60" opacity="0.92">f2</text>
+</g>
+<text x="272.0" y="360" text-anchor="middle" font-size="11.5" font-style="italic" fill="#3b7dc4">context</text>
+<g transform="translate(357,372)">
+<linearGradient id="gctx357" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef5fd"/><stop offset="1" stop-color="#dae8fb"/></linearGradient>
+<g clip-path="url(#fclip)">
+<rect width="138" height="96" fill="url(#gctx357)"/>
+<line x1="0" y1="60" x2="138" y2="60" stroke="#6aa3df" stroke-width="1.4" opacity="0.55"/>
+<circle cx="91" cy="38" r="11" fill="#6aa3df" opacity="0.9"/>
+</g>
+<rect width="138" height="96" rx="12" fill="none" stroke="#3b7dc4" stroke-width="2"/>
+<text x="69.0" y="44" text-anchor="middle" font-size="18" font-style="italic" font-weight="600" fill="#163a60" opacity="0.92">f3</text>
+</g>
+<text x="426.0" y="360" text-anchor="middle" font-size="11.5" font-style="italic" fill="#3b7dc4">context</text>
+<g transform="translate(511,372)">
+<linearGradient id="gctx511" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef5fd"/><stop offset="1" stop-color="#dae8fb"/></linearGradient>
+<g clip-path="url(#fclip)">
+<rect width="138" height="96" fill="url(#gctx511)"/>
+<line x1="0" y1="60" x2="138" y2="60" stroke="#6aa3df" stroke-width="1.4" opacity="0.55"/>
+<circle cx="91" cy="38" r="11" fill="#6aa3df" opacity="0.9"/>
+</g>
+<rect width="138" height="96" rx="12" fill="none" stroke="#3b7dc4" stroke-width="2"/>
+<text x="69.0" y="44" text-anchor="middle" font-size="18" font-style="italic" font-weight="600" fill="#163a60" opacity="0.92">f4</text>
+</g>
+<text x="580.0" y="360" text-anchor="middle" font-size="11.5" font-style="italic" fill="#3b7dc4">context</text>
+<g transform="translate(665,372)">
+<linearGradient id="gctx665" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef5fd"/><stop offset="1" stop-color="#dae8fb"/></linearGradient>
+<g clip-path="url(#fclip)">
+<rect width="138" height="96" fill="url(#gctx665)"/>
+<line x1="0" y1="60" x2="138" y2="60" stroke="#6aa3df" stroke-width="1.4" opacity="0.55"/>
+<circle cx="91" cy="38" r="11" fill="#6aa3df" opacity="0.9"/>
+</g>
+<rect width="138" height="96" rx="12" fill="none" stroke="#3b7dc4" stroke-width="2"/>
+<text x="69.0" y="44" text-anchor="middle" font-size="18" font-style="italic" font-weight="600" fill="#163a60" opacity="0.92">f5</text>
+</g>
+<text x="734.0" y="360" text-anchor="middle" font-size="11.5" font-style="italic" fill="#3b7dc4">context</text>
+<g transform="translate(819,372)">
+<linearGradient id="gtgt819" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6e8"/><stop offset="1" stop-color="#fde6c4"/></linearGradient>
+<g clip-path="url(#fclip)">
+<rect width="138" height="96" fill="url(#gtgt819)"/>
+<line x1="0" y1="60" x2="138" y2="60" stroke="#e0922f" stroke-width="1.4" opacity="0.55"/>
+<circle cx="91" cy="38" r="11" fill="#e0922f" opacity="0.9"/>
+<rect width="138" height="96" filter="url(#grain)" opacity="0.78"><animate attributeName="opacity" values="0.78;0.78;0;0;0.78" keyTimes="0;0.18;0.55;0.86;1" dur="4s" repeatCount="indefinite"/></rect>
+</g>
+<rect width="138" height="96" rx="12" fill="none" stroke="#d8902a" stroke-width="2"/>
+<text x="69.0" y="44" text-anchor="middle" font-size="18" font-style="italic" font-weight="600" fill="#7a4d0c" opacity="0.92">f6</text>
+</g>
+<text x="888.0" y="360" text-anchor="middle" font-size="11.5" font-style="italic" fill="#d8902a">target · denoising</text>
+<g opacity="0"><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.55;0.66;0.9;1" dur="4s" repeatCount="indefinite"/><g transform="translate(989,372)">
+<linearGradient id="gpred989" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4eefc"/><stop offset="1" stop-color="#e6daf9"/></linearGradient>
+<g clip-path="url(#fclip)">
+<rect width="138" height="96" fill="url(#gpred989)"/>
+<line x1="0" y1="60" x2="138" y2="60" stroke="#9a6fd0" stroke-width="1.4" opacity="0.55"/>
+<circle cx="91" cy="38" r="11" fill="#9a6fd0" opacity="0.9"/>
+</g>
+<rect width="138" height="96" rx="12" fill="none" stroke="#7c4dbc" stroke-width="2" stroke-dasharray="7 5"/>
+<text x="69.0" y="44" text-anchor="middle" font-size="18" font-style="italic" font-weight="600" fill="#4a2c7a" opacity="0.92">f&#770;7</text>
+</g><text x="1058.0" y="360" text-anchor="middle" font-size="11.5" font-style="italic" fill="#7c4dbc">predicted</text></g>
+<g opacity="0"><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.5;0.66;0.9;1" dur="4s" repeatCount="indefinite"/><path d="M961,420.0 L985,420.0" fill="none" stroke="#7c4dbc" stroke-width="1.8" marker-end="url(#ah)"/><text x="973.0" y="412.0" text-anchor="middle" font-size="10.5" font-style="italic" fill="#7c4dbc">predict next</text></g>
+<rect x="96.0" y="514" width="44" height="2" rx="2" fill="#c9ced8" opacity="1"/>
+<text x="118.0" y="534" text-anchor="middle" font-size="11.5" fill="#3b7dc4">σ = 0</text>
+<rect x="250.0" y="514" width="44" height="2" rx="2" fill="#c9ced8" opacity="1"/>
+<text x="272.0" y="534" text-anchor="middle" font-size="11.5" fill="#3b7dc4">σ = 0</text>
+<rect x="404.0" y="514" width="44" height="2" rx="2" fill="#c9ced8" opacity="1"/>
+<text x="426.0" y="534" text-anchor="middle" font-size="11.5" fill="#3b7dc4">σ = 0</text>
+<rect x="558.0" y="514" width="44" height="2" rx="2" fill="#c9ced8" opacity="1"/>
+<text x="580.0" y="534" text-anchor="middle" font-size="11.5" fill="#3b7dc4">σ = 0</text>
+<rect x="712.0" y="514" width="44" height="2" rx="2" fill="#c9ced8" opacity="1"/>
+<text x="734.0" y="534" text-anchor="middle" font-size="11.5" fill="#3b7dc4">σ = 0</text>
+<rect x="866.0" width="44" rx="2" fill="#e0654f" opacity="0.82"><animate attributeName="height" values="38;38;0;0;38" keyTimes="0;0.18;0.55;0.86;1" dur="4s" repeatCount="indefinite"/><animate attributeName="y" values="478;478;516;516;478" keyTimes="0;0.18;0.55;0.86;1" dur="4s" repeatCount="indefinite"/></rect>
+<text x="888.0" y="534" text-anchor="middle" font-size="11.5" fill="#d8902a">σ: 1→0</text>
+<rect x="1036.0" y="514" width="44" height="2" rx="2" fill="#c9ced8" opacity="1"/>
+<text x="1058.0" y="534" text-anchor="middle" font-size="11.5" fill="#7c4dbc">σ→0</text>
+<text x="39" y="508" text-anchor="end" font-size="10.5" font-style="italic" fill="#e0654f">noise</text>
+<rect x="250" y="606" width="18" height="13" rx="3" fill="#dae8fb" stroke="#3b7dc4" stroke-width="1.5"/>
+<text x="275" y="616" font-size="12.5" fill="#1a1f2b">Context frame (σ = 0, clean)</text>
+<rect x="560" y="606" width="18" height="13" rx="3" fill="#fde6c4" stroke="#d8902a" stroke-width="1.5"/>
+<text x="585" y="616" font-size="12.5" fill="#1a1f2b">Target frame (denoising)</text>
+<rect x="830" y="606" width="18" height="13" rx="3" fill="#e6daf9" stroke="#7c4dbc" stroke-width="1.5"/>
+<text x="855" y="616" font-size="12.5" fill="#1a1f2b">Predicted next frame</text>
+</svg>
