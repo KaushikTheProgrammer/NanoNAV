@@ -20,6 +20,7 @@ pod *stop*).
 | `mpc_semantic_nograph_nearpurifier.rrd` | A/B baseline for the above — same goal **without** the graph: arrives from start-dist 0.35 (0.35→0.10 in 52 steps), floor ~0.10. Shows the basin-of-attraction limit the graph overcomes. |
 | `mpc_semantic_graph_neardesk.rrd` | Graph run, full route + ENDGAME, but endgame **hovered ~0.30 for 35 steps** without crossing 0.08 — the goal-image-dependent endgame-floor open question (C1). |
 | `mpc_semantic_graph_nearhamper3.rrd` | nearhamper graph run, 2026-06-13 session (stopped mid-run; did not reach — made route progress to step ~62 then regressed). |
+| `mpc_semantic_graph_run2.rrd` | Graph run to a fresh cross-session goal (`goals/run2`, 2026-06-27). Localized onto the graph and converged cleanly — graph_dist 6.5→0, hops 37→0, `[tracked]` throughout — reached ENDGAME by step ~89 and closed to dist 0.10–0.11 before being stopped just above the 0.08 threshold. |
 | `mpc_semantic_nearchair1.rrd` | Semantic stack (no graph), 3/3 arrivals on nearchair1 — the goal that flat-L2 pixel-distance had failed. |
 | `mpc_semantic_nearfan2.rrd` | Semantic stack arrival on nearfan2 (in-basin). |
 | `mpc_nearfan2_execute.rrd` | **First-ever REACHED** (original SD-VAE WM, reach-thresh 35, 10 steps). |
