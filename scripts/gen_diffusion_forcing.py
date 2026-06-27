@@ -13,12 +13,15 @@ deployed page with no JS and stays crisp at any zoom.
 """
 import os
 
-BLUE_EC, BLUE_TX = "#3b7dc4", "#163a60"
-AMBR_EC, AMBR_TX = "#d8902a", "#7a4d0c"
-PURP_EC, PURP_TX = "#7c4dbc", "#4a2c7a"
-NOISE = "#e0654f"
-INK = "#1a1f2b"
-MUTE = "#6b7280"
+# warm cream/terracotta palette to match the site (style.css):
+# bg #fdf6e3 · accent #b3552c · tan #f5ead0. Muted teal = context/clean,
+# terracotta accent = target/denoising, dusty plum = predicted.
+BLUE_EC, BLUE_TX = "#5d8a8a", "#2d4a4a"
+AMBR_EC, AMBR_TX = "#b3552c", "#7a3a1a"
+PURP_EC, PURP_TX = "#845a8e", "#523460"
+NOISE = "#c0613c"
+INK = "#2c2722"
+MUTE = "#7c7565"
 FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
 
 W, H = 1160, 632
@@ -27,10 +30,10 @@ STEP = FW + GAP
 
 # scene gradients: (sky, floor, object, border, text)
 KIND = {
-    "std": ("#f1f2f5", "#e1e3ea", "#b6bcc8", "#9aa1ad", INK),
-    "ctx": ("#eef5fd", "#dae8fb", "#6aa3df", BLUE_EC, BLUE_TX),
-    "tgt": ("#fff6e8", "#fde6c4", "#e0922f", AMBR_EC, AMBR_TX),
-    "pred": ("#f4eefc", "#e6daf9", "#9a6fd0", PURP_EC, PURP_TX),
+    "std":  ("#eee9de", "#e3ddcc", "#b3aa95", "#a99f86", INK),
+    "ctx":  ("#e3eeee", "#d3e3e3", "#6f9c9c", BLUE_EC, BLUE_TX),
+    "tgt":  ("#fbeede", "#f4dcc0", "#cf7f44", AMBR_EC, AMBR_TX),
+    "pred": ("#efe6f0", "#e2d2e6", "#a07caa", PURP_EC, PURP_TX),
 }
 
 
@@ -66,7 +69,7 @@ def bar(cx, base, kind, sigma_lbl, sigma_color, anim=None):
     if anim is None:
         h = 22 if kind == "std" else 2
         s.append(f'<rect x="{cx-22}" y="{base-h}" width="44" height="{h}" rx="2" '
-                 f'fill="{NOISE if kind=="std" else "#c9ced8"}" '
+                 f'fill="{NOISE if kind=="std" else "#cdc4b0"}" '
                  f'opacity="{0.8 if kind=="std" else 1}"/>')
     else:
         s.append(f'<rect x="{cx-22}" width="44" rx="2" fill="{NOISE}" opacity="0.82">'
@@ -85,7 +88,7 @@ parts = [
 parts.append('<defs>')
 parts.append(
     '<linearGradient id="card" x1="0" y1="0" x2="0" y2="1">'
-    '<stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f6f7fb"/>'
+    '<stop offset="0" stop-color="#fdf7e9"/><stop offset="1" stop-color="#f6ecd2"/>'
     '</linearGradient>')
 parts.append(f'<clipPath id="fclip"><rect width="{FW}" height="{FH}" rx="12"/></clipPath>')
 parts.append(
@@ -102,7 +105,7 @@ parts.append('</defs>')
 
 # ── card + title ───────────────────────────────────────────────────────────
 parts.append(f'<rect x="1" y="1" width="{W-2}" height="{H-2}" rx="18" '
-             f'fill="url(#card)" stroke="#e6e8ee" stroke-width="1.5"/>')
+             f'fill="url(#card)" stroke="#e7dcc0" stroke-width="1.5"/>')
 parts.append(f'<text x="{W/2}" y="36" text-anchor="middle" font-size="19" '
              f'font-weight="700" fill="{INK}">Diffusion Forcing vs Standard Diffusion</text>')
 
@@ -128,7 +131,7 @@ parts.append(f'<text x="{X0-10}" y="{abase-8}" text-anchor="end" font-size="10.5
              f'font-style="italic" fill="{NOISE}">noise</text>')
 
 # divider
-parts.append(f'<line x1="40" y1="324" x2="{W-40}" y2="324" stroke="#e6e8ee" stroke-width="1.3"/>')
+parts.append(f'<line x1="40" y1="324" x2="{W-40}" y2="324" stroke="#e7dcc0" stroke-width="1.3"/>')
 
 # ════════════════════════════ PANEL B — forcing ═══════════════════════════
 by = 372
@@ -185,9 +188,9 @@ parts.append(f'<text x="{X0-10}" y="{bbase-8}" text-anchor="end" font-size="10.5
              f'font-style="italic" fill="{NOISE}">noise</text>')
 
 # ── legend ─────────────────────────────────────────────────────────────────
-leg = [("#dae8fb", BLUE_EC, "Context frame (σ = 0, clean)", 250),
-       ("#fde6c4", AMBR_EC, "Target frame (denoising)", 560),
-       ("#e6daf9", PURP_EC, "Predicted next frame", 830)]
+leg = [("#d3e3e3", BLUE_EC, "Context frame (σ = 0, clean)", 250),
+       ("#f4dcc0", AMBR_EC, "Target frame (denoising)", 560),
+       ("#e2d2e6", PURP_EC, "Predicted next frame", 830)]
 for fc, ec, txt, x in leg:
     parts.append(f'<rect x="{x}" y="{H-26}" width="18" height="13" rx="3" '
                  f'fill="{fc}" stroke="{ec}" stroke-width="1.5"/>')

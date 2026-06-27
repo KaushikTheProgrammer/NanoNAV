@@ -11,13 +11,16 @@ the deployed page without any JS.
 """
 import os
 
-# ── palette ────────────────────────────────────────────────────────────────
-BLUE_FC1, BLUE_FC2, BLUE_EC, BLUE_TX = "#eaf2fc", "#d3e4fa", "#3b7dc4", "#163a60"
-AMBR_FC1, AMBR_FC2, AMBR_EC, AMBR_TX = "#fef1da", "#fde0b6", "#d8902a", "#7a4d0c"
-GREN_FC1, GREN_FC2, GREN_EC, GREN_TX = "#e6f5e9", "#d0eed6", "#3a9d4e", "#1f5e2d"
-WIRE = "#9aa3b2"
-INK = "#1a1f2b"
-MUTE = "#6b7280"
+# ── palette ── warm cream/terracotta to match the site (style.css) ───────────
+# Site: bg #fdf6e3 · accent #b3552c · tan #f5ead0. Three earthy hues keep the
+# legend categories distinct: muted teal (frozen), terracotta accent (trained),
+# dusty plum (visualization).
+BLUE_FC1, BLUE_FC2, BLUE_EC, BLUE_TX = "#d8e6e6", "#c4dada", "#5d8a8a", "#2d4a4a"
+AMBR_FC1, AMBR_FC2, AMBR_EC, AMBR_TX = "#f4d9c1", "#eec59f", "#b3552c", "#7a3a1a"
+GREN_FC1, GREN_FC2, GREN_EC, GREN_TX = "#e7dced", "#d8c6e0", "#845a8e", "#523460"
+WIRE = "#b0a487"
+INK = "#2c2722"
+MUTE = "#7c7565"
 FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
 
 W, H = 1160, 500
@@ -63,7 +66,7 @@ for name, c1, c2 in [("bl", BLUE_FC1, BLUE_FC2), ("am", AMBR_FC1, AMBR_FC2),
         f'</linearGradient>')
 parts.append(
     '<linearGradient id="card" x1="0" y1="0" x2="0" y2="1">'
-    '<stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f6f7fb"/>'
+    '<stop offset="0" stop-color="#fdf7e9"/><stop offset="1" stop-color="#f6ecd2"/>'
     '</linearGradient>')
 parts.append(
     '<filter id="soft" x="-20%" y="-20%" width="140%" height="140%">'
@@ -90,7 +93,7 @@ parts.append('</defs>')
 
 # ── card backdrop + title ──────────────────────────────────────────────────
 parts.append(f'<rect x="1" y="1" width="{W-2}" height="{H-2}" rx="18" '
-             f'fill="url(#card)" stroke="#e6e8ee" stroke-width="1.5"/>')
+             f'fill="url(#card)" stroke="#e7dcc0" stroke-width="1.5"/>')
 parts.append(f'<text x="{W/2}" y="38" text-anchor="middle" font-size="19" '
              f'font-weight="700" fill="{INK}">NanoWM Architecture</text>')
 
@@ -98,7 +101,7 @@ parts.append(f'<text x="{W/2}" y="38" text-anchor="middle" font-size="19" '
 parts.append(f'<text x="120" y="84" text-anchor="middle" class="sub">Camera frames</text>')
 for i, off in enumerate((10, 5, 0)):
     parts.append(f'<rect x="{96-off}" y="{96+off}" width="48" height="30" rx="4" '
-                 f'fill="#ffffff" stroke="{MUTE}" stroke-width="1.3" opacity="{0.5+0.2*i}"/>')
+                 f'fill="#fffdf6" stroke="{MUTE}" stroke-width="1.3" opacity="{0.5+0.2*i}"/>')
 
 # ── frozen VAE encoder ─────────────────────────────────────────────────────
 parts.append(box(40, 160, 160, 70, "bl", "bl", BLUE_EC))
