@@ -70,10 +70,9 @@ The stock LeKiwi uses a low front-facing webcam and a gripper webcam. I replaced
 *Hardware at a glance: LeKiwi (LeRobot) · holonomic 3-omniwheel base · SO-ARM arm, parked · Raspberry Pi host · low-cost serial-bus servos · overhead USB camera on a custom ~55° mount. [TODO: confirm exact Pi model / servo model / camera model and how the mount was fabricated.]*
 
 [FIGURE: ✅ assets/lekiwi-mount.jpg — photo of the LeKiwi with the custom overhead camera mount]
-*The rig. The LeKiwi base with the arm parked and the custom mount holding the overhead camera that everything downstream depends on.*
 
 [MODEL: ✅ assets/lekiwi.glb assets/lekiwi.usdz — interactive 3-D scan of the LeKiwi robot]
-*Drag to orbit, scroll to zoom. On iPhone, tap the AR button to place the robot in your space.*
+*Drag to orbit, scroll to zoom.*
 
 ## 3 · Data
 
@@ -211,7 +210,7 @@ To find out why, I measured three candidate metrics at tape-marked positions acr
 | Metric | Ordering (ρ) | Far-field signal / noise | Why it fails |
 |---|---|---|---|
 | Pixel L1 | 1.00 | 706×, 386× | Strong signal, but lateral ordering breaks. The metric increases when moving sideways even when that sideways position is closer, so CEM would overcorrect. |
-| **SD-VAE latent L2** | 1.00 | **1.25×, 0.80×** | Perfect global ordering, but the far-field gradient is at or below the noise floor. CEM cannot see progress more than ~25 cm out. |
+| **SD-VAE latent L2** | 1.00 | **1.25×, 0.80×** | Perfect global ordering, but the far-field gradient is at or below the noise floor. CEM cannot see progress more than ~25 cm out. [TODO: validate on H100 — does VAE actually succeed at close range (near band 1.25× is marginal), or does it fail there too? Determines whether "blind beyond ~25 cm" is accurate or should be "blind at all ranges"] |
 | **Frozen DINOv2 patch cosine** | 0.94 | **12×, 21×** | Passes both. |
 
 [FIGURE: ✅ assets/metric_comparison.png]
