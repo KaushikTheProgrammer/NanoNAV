@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NanoNAV — real-robot navigation with Nano World Models</title>
 <meta name="description" content="Latent-space planning with a Nano World Model drives a LeKiwi robot to goal images — learned from 25 minutes of driving, no maps, no depth, no pose.">
-<link rel="stylesheet" href="style.css?v=1782698361">
+<link rel="stylesheet" href="style.css?v=1782698774">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
 </head>
@@ -156,7 +156,7 @@
 
 <figure>
   <img src="assets/diffusion_forcing.svg?v=d1ba0f3d" alt="">
-  <figcaption><b>Diffusion Forcing vs standard diffusion.</b> Standard diffusion holds one shared noise level across the whole window and denoises every frame in lockstep from pure noise (k=K) to clean (k=0), so a new frame cannot be produced without denoising the entire sequence again (top). Diffusion Forcing instead assigns every frame its own independent noise level (bottom). At inference the denoising wavefront sweeps forward, keeping past frames clean as context, denoising the next frame, and leaving the future noisy, which is exactly what lets the world model roll itself out one frame at a time and stay stable past the training horizon. Following <a href="https://arxiv.org/abs/2407.01392">Chen et al., 2024</a>.</figcaption>
+  <figcaption>Diffusion Forcing vs Standard Diffusion.</figcaption>
 </figure>
 
 <figure>
