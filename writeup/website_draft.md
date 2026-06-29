@@ -67,7 +67,7 @@ The [**LeKiwi**](https://github.com/SIGRobotics-UIUC/LeKiwi) is an open-source m
 
 The stock LeKiwi uses a low front-facing webcam and a gripper webcam. I replaced all three with wider-angle USB cameras and supplemented with a [third overhead camera](https://www.amazon.com/dp/B0C289GYVZ?ref=ppx_yo2ov_dt_b_product_details&th=1) on a custom mount, angled down at roughly 55°. That overhead vantage is what everything downstream depends on, capturing the scene across four depth zones at once, from the robot's own body and the near floor out to the mid-room objects and far walls.
 
-*Hardware at a glance: LeKiwi (LeRobot) · holonomic 3-omniwheel base · SO-ARM arm, parked · Raspberry Pi host · low-cost serial-bus servos · overhead USB camera on a custom ~55° mount. [TODO: confirm exact Pi model / servo model / camera model and how the mount was fabricated.]*
+*Hardware at a glance: LeKiwi (LeRobot) · holonomic 3-omniwheel base · SO101-ARM arm· Raspberry Pi 5 host · low-cost serial-bus servos · overhead USB camera on a custom mount.*
 
 [FIGURE: ✅ assets/lekiwi-mount.jpg — photo of the LeKiwi with the custom overhead camera mount]
 
@@ -299,6 +299,11 @@ In this run the robot starts facing the curtained wall, with no visual overlap b
 
 [FIGURE_PAIR: ✅ assets/plan-demo-6s.mp4 | assets/topdown_graph_hamper-6s.mp4 — synced planner view and overhead camera for a successful graph-guided run to the hamper]
 *Planner visualization (left) and overhead camera (right), synchronized. The planner routes through waypoints and drives to the goal. The overhead recording is compressed roughly 83× from the original 15-minute run.*
+
+A second run reaches a different goal the same way. Here the robot starts near the curtained wall and has to route across the room to a fan, with no visual overlap between its opening view and the goal. The planner view traces its imagined three-step rollouts and the seven-waypoint route it commits to, while a third-person camera shows the drive itself.
+
+[FIGURE_PAIR: ✅ assets/nearfan2_planner.mp4 | assets/nearfan2_real.mp4 — planner visualization and third-person camera for a graph-guided run to the fan]
+*Planner visualization (top) and third-person view (bottom) of a graph-guided run to the fan. The planner routes through seven waypoints, imagining and scoring each three-step plan, while the robot crosses the room. The footage is compressed roughly 88× from the original 12.8-minute run.*
 
 It is worth acknowledging that a topological graph of training frames is not a fundamentally new idea. Classical topological navigation has used similar structures for decades. What is different here is that the nodes are real camera observations from unstructured teleoperation, the edges are detected by a learned visual similarity metric rather than hand-placed, and the local step between waypoints is solved by a learned world model rather than a geometric controller. The graph does not replace the learning; it extends the range over which the learned planner can operate.
 
