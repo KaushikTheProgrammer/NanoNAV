@@ -78,7 +78,7 @@ The stock LeKiwi uses a low front-facing webcam and a gripper webcam. I replaced
 
 The most important constraint on data collection was what the model actually needs to learn. At inference time the [planner](#road-to-planning) samples dozens of candidate action sequences, good and bad, and rolls each through the world model to score the imagined outcome against the goal. A model trained only on successful trajectories cannot predict what a wrong action looks like, which means the planner has no way to score it lower than a good one. So the collection goal was coverage, not demonstration: fill the space, vary headings, and make sure the model has seen the consequences of driving in different directions.
 
-Collection was entirely manual, using **LeRobot's `record` pipeline** to timestamp and synchronize the overhead camera with commanded base velocities at 30 Hz. For teleoperation, I connected a PS5 DualSense over USB to drive forward velocity on the left stick and yaw rate on the right, with no strafe binding so sideways velocity is zero by construction.
+Collection was entirely manual, using LeRobot's `record` pipeline to timestamp and synchronize the overhead camera with commanded base velocities at 30 Hz. For teleoperation, I connected a PS5 DualSense over USB to drive forward velocity on the left stick and yaw rate on the right, with no strafe binding so sideways velocity is zero by construction.
 
 [FIGURE: ✅ assets/controller-setup.jpg — photo of the PS5 DualSense used for teleoperation]
 *The full data-collection rig. A PS5 DualSense wired over USB-C to the laptop, with the left stick mapped to forward velocity and the right to yaw rate. 25 minutes of driving with this produced the entire dataset.*

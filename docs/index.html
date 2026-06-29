@@ -15,7 +15,7 @@
 <meta name="twitter:title" content="NanoNAV: real-robot navigation with Nano World Models">
 <meta name="twitter:description" content="Latent-space planning with a Nano World Model drives a LeKiwi robot to goal images, learned from 25 minutes of driving, no maps, no depth, no pose.">
 <meta name="twitter:image" content="https://kaushikpraka.github.io/NanoNAV/assets/og_card.jpg">
-<link rel="stylesheet" href="style.css?v=1782717540">
+<link rel="stylesheet" href="style.css?v=1782718291">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
 </head>
@@ -118,7 +118,7 @@
 
 <p>The most important constraint on data collection was what the model actually needs to learn. At inference time the <a href="#road-to-planning">planner</a> samples dozens of candidate action sequences, good and bad, and rolls each through the world model to score the imagined outcome against the goal. A model trained only on successful trajectories cannot predict what a wrong action looks like, which means the planner has no way to score it lower than a good one. So the collection goal was coverage, not demonstration: fill the space, vary headings, and make sure the model has seen the consequences of driving in different directions.</p>
 
-<p>Collection was entirely manual, using <strong>LeRobot's <code>record</code> pipeline</strong> to timestamp and synchronize the overhead camera with commanded base velocities at 30 Hz. For teleoperation, I connected a PS5 DualSense over USB to drive forward velocity on the left stick and yaw rate on the right, with no strafe binding so sideways velocity is zero by construction.</p>
+<p>Collection was entirely manual, using LeRobot's <code>record</code> pipeline to timestamp and synchronize the overhead camera with commanded base velocities at 30 Hz. For teleoperation, I connected a PS5 DualSense over USB to drive forward velocity on the left stick and yaw rate on the right, with no strafe binding so sideways velocity is zero by construction.</p>
 
 <figure>
   <img src="assets/controller-setup.jpg?v=de22e831" alt="">
