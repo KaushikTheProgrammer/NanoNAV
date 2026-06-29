@@ -51,7 +51,7 @@ Two findings with **planning implications** (flagged in [[open-questions]]):
 Built the full Stage 3–5 toolchain. Validated everything testable without a GPU/torch (compile,
 hydra-compose, numpy-equivalence); the rest is pod-run.
 
-- **Fork + submodule:** `KaushikTheProgrammer/nano-world-model` added at `external/nanowm` (pinned).
+- **Fork + submodule:** `kaushikpraka/nano-world-model` added at `external/nanowm` (pinned).
 - **`scripts/build_lekiwi_nav_dataset.py`** (NanoNAV): v3.0→v2.1, top camera, 2-D SI action
   `[x.vel, omega_rad]`, 30 Hz. Reads raw (pandas + PyAV) so only the writer needs lerobot 2.1.0 —
   no version clash. Single-pass decode validated against episode metadata (50 eps, one contiguous
@@ -1417,5 +1417,5 @@ only `--goal` and `--rerun-save` change per run.
 **Recordings published off-machine.** `.rrd` files can't go in git (up to 565 MB each, 5.6 GB total,
 over GitHub's 100 MB/file limit; LFS free tier is 1 GB). Curated **keepers** (successes + A/B demo
 material, ~2.1 GB / 8 files) uploaded as **GitHub Release `recordings-v1`**:
-https://github.com/KaushikTheProgrammer/NanoNAV/releases/tag/recordings-v1 — index +
+https://github.com/kaushikpraka/NanoNAV/releases/tag/recordings-v1 — index +
 what-each-shows in [[RECORDINGS]]. Full set stays on `/workspace/results` (survives a pod stop).

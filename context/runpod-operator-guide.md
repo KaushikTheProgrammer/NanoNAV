@@ -21,7 +21,7 @@ started inside the pod and pointed at this repo. Read [[overview]], [[nanowm-int
 | GPU | 1× H100 80 GB |
 | Python env | **uv venv** at `/workspace/nanowm-venv` (`source /workspace/nanowm-venv/bin/activate`) — not conda; see [[runpod-setup]] |
 | Launch | `tmux new-session -d -s train 'bash /workspace/NanoNAV/scripts/run_training.sh'` (launch from the script file, not inline) |
-| NanoWM repo | the fork `KaushikTheProgrammer/nano-world-model` (env + integration fixes on `main`) |
+| NanoWM repo | the fork `kaushikpraka/nano-world-model` (env + integration fixes on `main`) |
 | `RESULTS_DIR` | `/workspace/results` (checkpoints + logs, on the persistent volume) |
 | `LEKIWI_DATA_ROOT` | `/workspace/data/lekiwi` (derived v2.1 dataset, on the volume) |
 | Session multiplexer | `tmux` (training runs in a named session so SSH drops don't kill it) |

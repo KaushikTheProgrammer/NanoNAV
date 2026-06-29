@@ -107,4 +107,4 @@ git push
 ```
 
 GitHub Pages serves from `docs/` on `main` at:
-https://kaushiktheprogrammer.github.io/NanoNAV/
+https://kaushikpraka.github.io/NanoNAV/

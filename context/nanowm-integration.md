@@ -37,7 +37,7 @@ How `kaushikpraka/wm-smallarea_merged` plugs into NanoWM
 - Store native 480×640; NanoWM resizes to 256² with **`resize_mode: pad`** (letterbox) to preserve
   geometry. Output → `kaushikpraka/wm-smallarea_nav30` (LeRobot v2.1, fps=30).
 
-**NanoWM patch (in the fork `KaushikTheProgrammer/nano-world-model`, submodule `external/nanowm`):**
+**NanoWM patch (in the fork `kaushikpraka/nano-world-model`, submodule `external/nanowm`):**
 - `world_model_dataset.py`: add `action_aggregation="concat"|"integrate_se2"` (default concat,
   backward-compatible) + `action_dt` (=1/30). In integrate mode: integrate **un-normalized**
   velocities via unicycle kinematics → `(Δx, Δθ)`, then normalize by integrated-delta stats

@@ -7,7 +7,7 @@ GitHub's 100 MB/file limit. The curated keepers (successes + write-up A/B demos)
 **GitHub Release assets**; the full set lives on the pod's `/workspace/results` (persists across a
 pod *stop*).
 
-**Release:** https://github.com/KaushikTheProgrammer/NanoNAV/releases/tag/recordings-v1
+**Release:** https://github.com/kaushikpraka/NanoNAV/releases/tag/recordings-v1
 
 **View:** `pip install rerun-sdk` then `rerun <file>.rrd`, or drag the file into
 <https://rerun.io/viewer>.

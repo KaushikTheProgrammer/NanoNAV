@@ -76,7 +76,7 @@ Skip if `$REPO_DIR/.git` already exists (pod restarted with the volume intact) â
 
 ```bash
 if [ ! -d "$REPO_DIR/.git" ]; then
-  git clone --recurse-submodules https://github.com/KaushikTheProgrammer/NanoNAV.git "$REPO_DIR"
+  git clone --recurse-submodules https://github.com/kaushikpraka/NanoNAV.git "$REPO_DIR"
 else
   git -C "$REPO_DIR" pull --recurse-submodules && git -C "$REPO_DIR" submodule update --init --recursive
 fi
